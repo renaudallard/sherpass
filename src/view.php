@@ -36,7 +36,7 @@ function respond(int $status, string $title, string $body): void
     header('X-Robots-Tag: noindex, nofollow');
     header('Cache-Control: no-store');
     $title = h($title);
-    echo <<<HTML
+    $page = <<<HTML
         <!doctype html>
         <html lang="en">
         <head>
@@ -54,6 +54,12 @@ function respond(int $status, string $title, string $body): void
         </html>
 
         HTML;
+    /*
+     * With a length the client knows when the page is complete, even if
+     * the script goes on and no php-fpm can end the request early.
+     */
+    header('Content-Length: ' . strlen($page));
+    echo $page;
 }
 
 function view_error(string $msg): string

@@ -235,9 +235,10 @@ function page_claim(PDO $db, int $now): void
 }
 
 /*
- * The answer is the same whether the address matches or not, and the
- * mail is only sent once the page is out, so that someone holding the
- * share link cannot use it to confirm who the recipient is.
+ * The answer is the same whether the address matches or not, and nothing
+ * that depends on the address is done before the page is out, so that
+ * neither the page nor its timing tells someone holding the share link
+ * who the recipient is.
  */
 function do_claim(array $cfg, PDO $db, int $now): void
 {
@@ -255,49 +256,45 @@ function do_claim(array $cfg, PDO $db, int $now): void
         return;
     }
 
-    $r = token_new();
     $ip = ip_key();
-    $name = 'secret:' . $id;
-    $sender = null;
-    $state = db_tx($db, function () use ($db, $now, $cfg, $id, $tag, $email,
-        $r, $ip, $name, &$sender): string {
+    $ok = db_tx($db, function () use ($db, $now, $cfg, $ip): bool {
         if (!throttle_ok($db, $ip, $cfg['ip_limit'], THROTTLE_WINDOW,
             $now)) {
-            return 'throttled';
+            return false;
         }
         throttle_hit($db, $ip, $now);
-        $row = db_query($db, 'SELECT sender, rcpt FROM secret ' .
-            'WHERE id = ? AND claimed IS NULL AND expires > ?',
-            [$id, $now])->fetch();
-        if ($row === false) {
-            return 'invalid';
-        }
-        if (!hash_equals($row['rcpt'], rcpt_tag($email, $tag)) ||
-            !throttle_ok($db, $name, 1, $cfg['recipient_delay'], $now) ||
-            !throttle_ok($db, $name, $cfg['recipient_limit'],
-            THROTTLE_WINDOW, $now)) {
-            return 'done';
-        }
-        throttle_hit($db, $name, $now);
-        db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
-            'WHERE id = ?', [token_hash($r), $now + $cfg['token_ttl'], $id]);
-        $sender = $row['sender'];
-        return 'mail';
+        return true;
     });
-    if ($state === 'throttled') {
+    if (!$ok) {
         too_many();
-        return;
-    }
-    if ($state === 'invalid') {
-        invalid();
         return;
     }
     respond(200, 'Check your mail',
         view_claim_sent(duration($cfg['token_ttl'])));
-    if ($state !== 'mail') {
+    finish_response();
+
+    $r = token_new();
+    $name = 'secret:' . $id;
+    $sender = db_tx($db, function () use ($db, $now, $cfg, $id, $tag, $email,
+        $r, $name): ?string {
+        $row = db_query($db, 'SELECT sender, rcpt FROM secret ' .
+            'WHERE id = ? AND claimed IS NULL AND expires > ?',
+            [$id, $now])->fetch();
+        if ($row === false ||
+            !hash_equals($row['rcpt'], rcpt_tag($email, $tag)) ||
+            !throttle_ok($db, $name, 1, $cfg['recipient_delay'], $now) ||
+            !throttle_ok($db, $name, $cfg['recipient_limit'],
+            THROTTLE_WINDOW, $now)) {
+            return null;
+        }
+        throttle_hit($db, $name, $now);
+        db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
+            'WHERE id = ?', [token_hash($r), $now + $cfg['token_ttl'], $id]);
+        return $row['sender'];
+    });
+    if ($sender === null) {
         return;
     }
-    finish_response();
     $link = $cfg['base_url'] . '/?s=' . $s . '&r=' . token_encode($r);
     if (!mail_recipient($cfg, $email, $sender, $link)) {
         error_log("sherpass: cannot send the reveal mail of secret $id");

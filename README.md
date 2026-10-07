@@ -49,8 +49,11 @@ one.
   A client going away does not stop the deletion. If PHP dies in
   between, the claimed secret can no longer be displayed and is purged
   with the expired rows 5 minutes later.
-* The recipient link is mailed after the page has been sent, so the
-  response time does not tell whether the address matched.
+* Nothing that depends on the recipient address is done before the page
+  has been sent, so the response time does not tell whether the address
+  matched. The work and the mail that follow a match still keep a
+  php-fpm worker busy for a moment, which can only show when no other
+  worker is free.
 * Links in mail are built from `base_url`, never from the request `Host`
   header.
 * Only plain addresses are accepted, with no quoted local part and no %

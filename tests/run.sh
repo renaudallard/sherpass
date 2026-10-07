@@ -24,13 +24,32 @@ ok() {
 
 # get URL, post URL curl-args...: set STATUS, body and headers in files.
 get() {
-    STATUS=$(curl -s -o "$BODY" -D "$HEADERS" -w '%{http_code}' "$1")
+    request "$1"
 }
 
 post() {
     u=$1
     shift
-    STATUS=$(curl -s -o "$BODY" -D "$HEADERS" -w '%{http_code}' "$@" "$u")
+    request "$u" "$@"
+}
+
+# The page can be complete before the script ends: claims send their mail
+# and reveals delete the password once it is out. Wait for the server to
+# log that it closed the connection of the request.
+request() {
+    u=$1
+    shift
+    from=$(($(wc -l < "$T/server.log") + 1))
+    out=$(curl -s -o "$BODY" -D "$HEADERS" -w '%{http_code} %{local_port}' \
+        "$@" "$u")
+    STATUS=${out% *}
+    i=0
+    until tail -n +$from "$T/server.log" |
+        grep -q "127.0.0.1:${out#* } Closing"; do
+        i=$((i + 1))
+        [ $i -lt 100 ] || fail "request to $u did not end"
+        sleep 0.1
+    done
 }
 
 expect() {
@@ -383,8 +402,12 @@ share "$V" "$T/secret" dan@example.org
 claim "$S" dan@example.org
 PIDS=
 for n in 1 2 3 4; do
-    curl -s -o "$T/par$n" -w '%{http_code}\n' --data-urlencode "s=$S" \
-        --data-urlencode "r=$R" "$BASE/" > "$T/par$n.status" &
+    (
+        BODY=$T/par$n
+        HEADERS=$T/par$n.headers
+        post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+        echo "$STATUS" > "$T/par$n.status"
+    ) &
     PIDS="$PIDS $!"
 done
 # shellcheck disable=SC2086
