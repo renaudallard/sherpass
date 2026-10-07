@@ -163,8 +163,10 @@ function mail_displayed(array $cfg, string $to, string $rcpt,
         The password you shared with $rcpt was displayed on $when. It has
         been deleted from the server.
 
-        If $rcpt did not display it, someone else had both the share link
-        and access to that mailbox: change the password.
+        If $rcpt did not see it, change the password: either the display
+        button was pressed twice, the second press showing the password as
+        already used, or someone else had both the share link and access to
+        that mailbox.
 
         TXT;
     return mail_send($cfg, $to, 'Your password has been displayed', $body);

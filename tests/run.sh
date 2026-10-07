@@ -655,6 +655,8 @@ grep -q '^Subject: Your password has been displayed' "$M" ||
     fail "notification Subject"
 grep -q 'shared with oliver@example.org was displayed on' "$M" ||
     fail "notification lacks the recipient"
+grep -q 'button was pressed twice' "$M" ||
+    fail "notification does not tell of a second press"
 grep -q 'https\{0,1\}://' "$M" && fail "link in the notification"
 ok "sender told of the display"
 noerrors "before a damaged recipient to notify"
