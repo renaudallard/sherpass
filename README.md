@@ -50,6 +50,8 @@ one.
   response time does not tell whether the address matched.
 * Links in mail are built from `base_url`, never from the request `Host`
   header.
+* Only plain addresses are accepted, with no quoted local part and no %
+  or ! routing operator, which some relays follow to another domain.
 * Pages are sent with a strict Content-Security-Policy, no JavaScript,
   `Referrer-Policy: no-referrer` and `Cache-Control: no-store`. The
   password field disables browser spellcheck, which may send its content

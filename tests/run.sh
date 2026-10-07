@@ -167,6 +167,9 @@ mail_from_name = \"$(printf 'Sherp\303\240ss')\"" \
     "non ASCII mail_from_name rejected"
 cfgtest fail "$(echo "$GOOD" | sed 's/^mail_from.*/mail_from = "nobody"/')" \
     "invalid mail_from rejected"
+cfgtest fail "$(echo "$GOOD" |
+    sed "s/^mail_from.*/mail_from = \"o'brien@allard.it\"/")" \
+    "quote in mail_from rejected"
 
 SMTP="$GOOD
 mail_transport = smtp
@@ -248,6 +251,13 @@ for a in bob@example.com bob@sub.allard.it bob@allard.it.example.com; do
     post "$BASE/" --data-urlencode "email=$a"
     expect 403 "sender $a rejected"
 done
+for a in 'x%evil.example@allard.it' 'evil.example!x@allard.it' \
+    '"x@evil.example"@allard.it' '"alice"@allard.it' 'a@[127.0.0.1]'; do
+    post "$BASE/" --data-urlencode "email=$a"
+    expect 400 "sender $a rejected"
+done
+post "$BASE/" --data 'email=%22a%5C%00b%22%40allard.it'
+expect 400 "sender with an escaped NUL rejected"
 [ "$(nmail)" = 0 ] || fail "mail sent for a rejected sender"
 ok "no mail for rejected senders"
 

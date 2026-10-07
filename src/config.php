@@ -55,9 +55,11 @@ function config_load(string $path): array
         }
     }
 
+    /* The shell run by mail() would drop quotes passed with -f. */
     $from = email_normalize($ini['mail_from'] ?? null);
-    if ($from === null) {
-        throw new RuntimeException('mail_from must be a valid address');
+    if ($from === null || str_contains($from, "'")) {
+        throw new RuntimeException('mail_from must be a plain address ' .
+            'without quotes');
     }
 
     return [

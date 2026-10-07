@@ -9,7 +9,17 @@ declare(strict_types=1);
 const EMAIL_MAX = 254;
 
 /*
- * Return $v as a lowercase address, or null if it is not a valid one.
+ * Plain addresses only: a dot-atom local part without the % and ! routing
+ * operators, at a host name. Quoted local parts are refused too, some
+ * relays look inside the quotes and would deliver to another domain.
+ */
+const EMAIL_ATOM = '[a-z0-9#$&\'*+\/=?^_`{|}~-]+';
+const EMAIL_RE = '/^' . EMAIL_ATOM . '(?:\.' . EMAIL_ATOM . ')*' .
+    '@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z][a-z0-9-]*[a-z0-9]$/D';
+
+/*
+ * Return $v as a lowercase address, or null if it is not a plain one.
+ * FILTER_VALIDATE_EMAIL adds the length limits of the parts.
  */
 function email_normalize(mixed $v): ?string
 {
@@ -17,7 +27,7 @@ function email_normalize(mixed $v): ?string
         return null;
     }
     $e = strtolower(trim($v));
-    if (strlen($e) > EMAIL_MAX || strpbrk($e, "\r\n") !== false ||
+    if (strlen($e) > EMAIL_MAX || preg_match(EMAIL_RE, $e) !== 1 ||
         filter_var($e, FILTER_VALIDATE_EMAIL) === false) {
         return null;
     }
