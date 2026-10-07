@@ -164,15 +164,21 @@ function do_compose(array $cfg, PDO $db, int $now): void
     $rcpt_in = $_POST['rcpt'] ?? '';
     $secret = is_string($secret) ? $secret : '';
     $rcpt_in = is_string($rcpt_in) ? $rcpt_in : '';
-    if ($secret === '' || strlen($secret) > SECRET_MAX) {
-        respond(400, $title, view_compose($v, $sender, 'The password must ' .
-            'be 1 to ' . SECRET_MAX . ' bytes long.', '', $rcpt_in));
-        return;
-    }
     /* The page could not show such bytes as they were entered. */
-    if (preg_match('//u', $secret) !== 1 || str_contains($secret, "\0")) {
+    if (strlen($secret) <= 4 * SECRET_MAX &&
+        (preg_match('//u', $secret) !== 1 || str_contains($secret, "\0"))) {
         respond(400, $title, view_compose($v, $sender, 'The password ' .
             'contains bytes that are not text.', '', $rcpt_in));
+        return;
+    }
+    /*
+     * Counted in characters as maxlength does, where a line break is one
+     * character although browsers send CR LF.
+     */
+    if ($secret === '' || strlen($secret) > 4 * SECRET_MAX ||
+        preg_match_all('/\r\n|./su', $secret) > SECRET_MAX) {
+        respond(400, $title, view_compose($v, $sender, 'The password must ' .
+            'be 1 to ' . SECRET_MAX . ' characters long.', '', $rcpt_in));
         return;
     }
     $rcpt = email_normalize($rcpt_in);

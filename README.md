@@ -78,7 +78,7 @@ one.
 
 Requests are rate limited, see `ip_limit`, `sender_limit`,
 `recipient_limit` and `recipient_delay` below. Passwords are limited to
-4096 bytes.
+4096 characters.
 
 Sherpass cannot protect against someone who can read the recipient
 mailbox. The reveal mail carries the share key as well, so the share link

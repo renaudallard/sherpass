@@ -75,6 +75,15 @@ lastmail() {
     echo "$MAILDIR/$(nmail)"
 }
 
+# True if the page displays the content of file $1, escaped and intact.
+shown() {
+    php -r '$b = file_get_contents($argv[1]);
+        $s = "<pre class=\"box\">\n" . htmlspecialchars(
+            file_get_contents($argv[2]),
+            ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, "UTF-8") . "</pre>";
+        exit(str_contains($b, $s) ? 0 : 1);' "$BODY" "$1"
+}
+
 # A valid token that matches nothing.
 rnd() {
     php -r 'echo sodium_bin2base64(random_bytes(32),
@@ -369,6 +378,9 @@ has 'alice@allard.it'
 printf '\n  p<b>a&s"s'"'"'\n\tw\303\251rd \342\202\254 ' > "$T/secret"
 : > "$T/empty"
 head -c 4097 /dev/zero | tr '\0' x > "$T/big"
+php -r 'echo str_repeat("\u{e9}", 4097);' > "$T/bigutf8"
+php -r 'echo str_repeat("\u{e9}", 2000), "\r\n", str_repeat("x", 2095);' \
+    > "$T/fullutf8"
 
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/empty" \
     --data-urlencode "rcpt=bob@example.org"
@@ -376,6 +388,10 @@ expect 400 "empty password rejected"
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/big" \
     --data-urlencode "rcpt=bob@example.org"
 expect 400 "oversized password rejected"
+post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/bigutf8" \
+    --data-urlencode "rcpt=bob@example.org"
+expect 400 "password over 4096 characters rejected"
+has '1 to 4096 characters'
 printf 'ab\377cd' > "$T/binary"
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/binary" \
     --data-urlencode "rcpt=bob@example.org"
@@ -455,11 +471,7 @@ expect 404 "wrong reveal token rejected"
 
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 200 "password revealed"
-php -r '$b = file_get_contents($argv[1]);
-    $s = "<pre class=\"box\">\n" . htmlspecialchars(file_get_contents($argv[2]),
-        ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, "UTF-8") . "</pre>";
-    exit(str_contains($b, $s) ? 0 : 1);' "$BODY" "$T/secret" ||
-    fail "password not displayed escaped and intact"
+shown "$T/secret" || fail "password not displayed escaped and intact"
 grep -qF 'p<b>a' "$BODY" && fail "password not escaped"
 tail -n 1 "$BODY" | grep -q '</html>' || fail "page incomplete"
 grep -qi '^cache-control: no-store' "$HEADERS" || fail "reveal cacheable"
@@ -473,6 +485,16 @@ get "$BASE/?s=$S"
 expect 404 "share link dead after reveal"
 
 # Concurrent reveals: exactly one may succeed.
+
+# 4096 characters, a line break counting as one, are accepted.
+
+sender ursula@allard.it
+share "$V" "$T/fullutf8" vera@example.org
+claim "$S" vera@example.org
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 200 "password of 4096 characters with a line break revealed"
+shown "$T/fullutf8" || fail "long password not displayed intact"
+ok "long password displayed intact"
 
 sender carol@allard.it
 share "$V" "$T/secret" dan@example.org
