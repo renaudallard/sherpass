@@ -84,6 +84,11 @@ shown() {
         exit(str_contains($b, $s) ? 0 : 1);' "$BODY" "$1"
 }
 
+# Print $1 repeated $2 times, without head -c that OpenBSD does not have.
+repeat() {
+    php -r 'echo str_repeat($argv[1], (int)$argv[2]);' "$1" "$2"
+}
+
 # A valid token that matches nothing.
 rnd() {
     php -r 'echo sodium_bin2base64(random_bytes(32),
@@ -283,8 +288,8 @@ cfgtest fail "$GOOD
 allowed_domains[] = \"allard.it.\"" "domain with a final dot rejected"
 cfgtest fail "$GOOD
 allowed_domains[] = localhost" "single label domain rejected"
-cfgtest fail "$(echo "$GOOD" | sed "1s|\"\$|/$(head -c 250 /dev/zero |
-    tr '\0' a)\"|")" "overlong base_url rejected"
+cfgtest fail "$(echo "$GOOD" | sed "1s|\"\$|/$(repeat a 250)\"|")" \
+    "overlong base_url rejected"
 cfgtest pass "$GOOD
 mail_transport = smtp
 smtp_host = localhost
@@ -381,7 +386,7 @@ has 'alice@allard.it'
 
 printf '\n  p<b>a&s"s'"'"'\n\tw\303\251rd \342\202\254 ' > "$T/secret"
 : > "$T/empty"
-head -c 4097 /dev/zero | tr '\0' x > "$T/big"
+repeat x 4097 > "$T/big"
 php -r 'echo str_repeat("\u{e9}", 4097);' > "$T/bigutf8"
 php -r 'echo str_repeat("\u{e9}", 2000), "\r\n", str_repeat("x", 2095);' \
     > "$T/fullutf8"
@@ -614,7 +619,7 @@ smtpfail() {
 smtpd tls $SMTP_TLS tls sherpass 'p@ss w0rd'
 smtpd starttls $SMTP_STARTTLS starttls sherpass 'p@ss w0rd' LOGIN
 smtpd none $SMTP_PLAIN plain
-LONGPASS=$(head -c 400 /dev/zero | tr '\0' x)
+LONGPASS=$(repeat x 400)
 smtpd tls $SMTP_LONG long sherpass "$LONGPASS" PLAIN
 
 CREDS="smtp_user = 'sherpass'
