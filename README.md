@@ -571,6 +571,7 @@ as of October 2026:
 | API, CLI | No | Yes | Yes, third party CLIs | Yes |
 | Mail | Required | No | No | Optional |
 | Stack | PHP, SQLite | Go, React, Memcached or Redis | PHP, JavaScript | Ruby on Rails |
+| License | BSD 2-Clause | Apache-2.0, some features need a paid license | Zlib/libpng, bundled libraries under their own | Apache-2.0 |
 
 Only sherpass ties a password to one recipient, so that the link alone
 does not display it. Senders need an address in a chosen domain but no
