@@ -776,6 +776,17 @@ N=$(nmail)
 claim "$S" sam@example.org
 [ "$(nmail)" = $((N + 1)) ] || fail "failed code mail counted"
 ok "failed code mail does not delay the next one"
+R1=$R
+smtpconfig "smtp_host = localhost
+smtp_port = $DEAD
+smtp_tls = off
+recipient_delay = 0"
+noerrors "before a second failing code mail"
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=sam@example.org"
+expect 200 "claim answered while its code mail fails"
+: > "$T/php.log"
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R1"
+expect 200 "code delivered before a failed mail still works"
 
 # A lone dot and lines starting with one must survive DATA.
 printf '.first\r\n.\r\nline\r\n..two\r\n' > "$T/dots"

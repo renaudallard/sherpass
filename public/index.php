@@ -224,14 +224,16 @@ function do_compose(array $cfg, PDO $db, int $now): void
 }
 
 /**
- * The sender and recipient tag of secret $id, false if it cannot be
- * claimed any more.
+ * The sender, recipient tag and current code of secret $id, false if it
+ * cannot be claimed any more.
  *
- * @return array{sender: string, rcpt: string}|false
+ * @return array{sender: string, rcpt: string, reveal: ?string,
+ *     reveal_expires: int|string|null}|false
  */
 function secret_row(PDO $db, string $id, int $now): array|false
 {
-    return db_query($db, 'SELECT sender, rcpt FROM secret ' .
+    return db_query($db, 'SELECT sender, rcpt, reveal, reveal_expires ' .
+        'FROM secret ' .
         'WHERE id = ? AND claimed IS NULL AND expires > ?',
         [$id, $now])->fetch();
 }
@@ -314,16 +316,24 @@ function do_claim(array $cfg, PDO $db, int $now): void
         }
         db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
             'WHERE id = ?', [token_hash($r), $now + $cfg['token_ttl'], $id]);
-        return [$row['sender'], throttle_hit($db, $name, $now)];
+        return [$row, throttle_hit($db, $name, $now)];
     });
     if ($found === null) {
         return;
     }
-    [$sender, $hit] = $found;
-    if (!mail_recipient($cfg, $email, $sender, code_encode($r))) {
+    [$row, $hit] = $found;
+    if (!mail_recipient($cfg, $email, $row['sender'], code_encode($r))) {
         error_log("sherpass: cannot send the code of secret $id");
-        /* A new try must not be refused, within the client's limit. */
-        db_tx($db, function () use ($db, $hit): void {
+        /*
+         * Give back the code delivered before, unless a newer one has
+         * replaced this one meanwhile, and allow a new try within the
+         * client's limit.
+         */
+        $old = $row['reveal_expires'];
+        db_tx($db, function () use ($db, $id, $r, $row, $old, $hit): void {
+            db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
+                'WHERE id = ? AND reveal = ?', [$row['reveal'],
+                $old === null ? null : (int)$old, $id, token_hash($r)]);
             throttle_undo($db, [$hit]);
         });
     }

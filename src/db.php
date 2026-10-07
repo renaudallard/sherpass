@@ -53,14 +53,18 @@ function db_open(string $path): PDO
 }
 
 /**
- * @param list<int|string> $args
+ * @param list<int|string|null> $args
  */
 function db_query(PDO $db, string $sql, array $args = []): PDOStatement
 {
     $st = $db->prepare($sql);
     foreach ($args as $i => $v) {
-        $st->bindValue($i + 1, $v, is_int($v) ? PDO::PARAM_INT :
-            PDO::PARAM_STR);
+        $type = match (true) {
+            is_int($v) => PDO::PARAM_INT,
+            is_null($v) => PDO::PARAM_NULL,
+            default => PDO::PARAM_STR,
+        };
+        $st->bindValue($i + 1, $v, $type);
     }
     $st->execute();
     return $st;
