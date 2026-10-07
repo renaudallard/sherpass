@@ -140,7 +140,6 @@ besides `server_name` and the certificate paths:
 
 ```nginx
 access_log /var/www/logs/sherpass.access.log sherpass;
-fastcgi_param SHERPASS_CONFIG /sherpass/sherpass.ini;
 fastcgi_pass unix:run/php-fpm.sock;
 ```
 
@@ -182,17 +181,25 @@ cp /var/www/sherpass/nginx/sherpass.conf.example \
 ln -s ../sites-available/sherpass /etc/nginx/sites-enabled/sherpass
 ```
 
-Adjust `server_name`, the certificate paths and the php-fpm socket, then
-`nginx -t && systemctl reload nginx`.
+Adjust `server_name`, the certificate paths and the php-fpm socket, and
+tell sherpass where its configuration is, in the `location = /` block:
+
+```nginx
+fastcgi_param SHERPASS_CONFIG /etc/sherpass/sherpass.ini;
+```
+
+Then run `nginx -t && systemctl reload nginx`.
 
 ### The nginx example
 
 It only passes `/` to PHP, serves `style.css` and returns 404 for
 anything else. Its request body buffer is as large as the largest
 accepted body: nginx writes bigger bodies to a temporary file, and the
-compose form carries the password in clear. It also tells PHP where the
-configuration is, through the `SHERPASS_CONFIG` FastCGI parameter.
-Without it, sherpass reads `sherpass.ini` from its top directory.
+compose form carries the password in clear.
+
+sherpass reads `sherpass.ini` from its top directory, next to `public/`
+and `src/`, unless the `SHERPASS_CONFIG` FastCGI parameter names another
+file, as in the Debian setup above.
 
 ## Running in a chroot
 

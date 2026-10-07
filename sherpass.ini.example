@@ -1,7 +1,7 @@
 ; Sherpass configuration.
 ;
-; Copy to sherpass.ini next to this file, or anywhere else and point the
-; SHERPASS_CONFIG environment variable to it.
+; Copy to sherpass.ini next to this file, where sherpass looks for it, or
+; anywhere else and name it in the SHERPASS_CONFIG FastCGI parameter.
 
 ; Public URL of the site, used to build the sender and share links. Must be
 ; https, plain http is only accepted for localhost.

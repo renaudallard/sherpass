@@ -40,9 +40,8 @@ server {
     location = / {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root/index.php;
-        # Paths as php-fpm sees them. On OpenBSD, where it runs in a chroot
-        # in /var/www: /sherpass/sherpass.ini and unix:run/php-fpm.sock.
-        fastcgi_param SHERPASS_CONFIG /etc/sherpass/sherpass.ini;
+        # On OpenBSD, where php-fpm runs in a chroot in /var/www, the
+        # socket is unix:run/php-fpm.sock.
         fastcgi_pass unix:/run/php/php8.4-fpm.sock;
     }
 
