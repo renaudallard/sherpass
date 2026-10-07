@@ -28,6 +28,7 @@ server {
 
     access_log /var/log/nginx/sherpass.access.log sherpass;
 
+    # On OpenBSD nginx removes its chroot, /var/www, from this path.
     root /var/www/sherpass/public;
     # The compose form carries the password in clear: keep the whole body
     # in memory, never in a temporary file.
@@ -39,6 +40,8 @@ server {
     location = / {
         include fastcgi_params;
         fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        # Paths as php-fpm sees them. On OpenBSD, where it runs in a chroot
+        # in /var/www: /sherpass/sherpass.ini and unix:run/php-fpm.sock.
         fastcgi_param SHERPASS_CONFIG /etc/sherpass/sherpass.ini;
         fastcgi_pass unix:/run/php/php8.4-fpm.sock;
     }

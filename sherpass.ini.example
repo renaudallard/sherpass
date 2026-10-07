@@ -16,7 +16,8 @@ mail_from_name = "Sherpass"
 allowed_domains[] = "allard.it"
 
 ; SQLite database, absolute path. Its directory must be writable by the
-; PHP user and lie outside the web root.
+; PHP user and lie outside the web root. In a chroot, the path inside it:
+; /sherpass/db/sherpass.db on OpenBSD.
 db_path = "/var/lib/sherpass/sherpass.db"
 
 ; The settings below are optional, the values shown are the defaults.
@@ -44,7 +45,9 @@ recipient_limit = 3
 recipient_delay = 60
 
 ; Mail delivery: sendmail hands mails to the local MTA through PHP
-; mail(), smtp talks to an SMTP server directly.
+; mail(), smtp talks to an SMTP server directly. In a chroot, use smtp:
+; mail() needs /bin/sh and sendmail. On OpenBSD, smtpd(8) on 127.0.0.1
+; with smtp_tls = off is enough.
 ;mail_transport = sendmail
 
 ; SMTP server, mandatory with mail_transport = smtp.

@@ -89,7 +89,7 @@ and displayed.
 ## Requirements
 
 * PHP 8.0 or later with the sodium and pdo_sqlite extensions, run through
-  php-fpm. Developed and tested with PHP 8.4.
+  php-fpm. Developed with PHP 8.4, tested on OpenBSD 8.0 and Debian.
 * nginx, 1.25.1 or later for the example configuration, which uses
   `http2 on`, or another web server, see below.
 * A local MTA providing `sendmail`, for instance Exim, Postfix or
@@ -98,6 +98,52 @@ and displayed.
   Debian) is fine. Either way, the server must be allowed to send mail
   as `mail_from`, with SPF and DKIM set up for its domain or the mails
   will likely be flagged as spam.
+
+## Installation on OpenBSD
+
+nginx and php-fpm both run in a chroot in `/var/www`, and Sherpass lives
+inside it. Install the packages:
+
+    pkg_add php-pdo_sqlite%8.4 nginx
+    ln -sf ../php-8.4.sample/pdo_sqlite.ini /etc/php-8.4/
+
+Copy the source tree to `/var/www/sherpass`, then:
+
+    install -d -o www -g www -m 0700 /var/www/sherpass/db
+    touch /var/www/logs/sherpass-php.log
+    chown www:www /var/www/logs/sherpass-php.log
+    install -g www -m 0640 /var/www/sherpass/sherpass.ini.example \
+        /var/www/sherpass/sherpass.ini
+
+Paths in `sherpass.ini` are the ones php-fpm sees, without `/var/www`,
+and mail is best handed to smtpd(8), which listens on lo0:
+
+    db_path = "/sherpass/db/sherpass.db"
+    mail_transport = smtp
+    smtp_host = 127.0.0.1
+    smtp_tls = off
+
+The default `/etc/php-fpm.conf` already runs its pool as www in the
+chroot, listening on `/var/www/run/php-fpm.sock`. Give PHP a log inside
+the chroot by adding to the pool:
+
+    php_admin_value[error_log] = /logs/sherpass-php.log
+    php_admin_flag[log_errors] = on
+
+Copy `nginx/sherpass.conf.example` to `/etc/nginx/sherpass.conf`,
+include it from the `http` block of `/etc/nginx/nginx.conf`, and set,
+besides `server_name` and the certificate paths:
+
+    access_log /var/www/logs/sherpass.access.log sherpass;
+    fastcgi_param SHERPASS_CONFIG /sherpass/sherpass.ini;
+    fastcgi_pass unix:run/php-fpm.sock;
+
+`root /var/www/sherpass/public` stays as it is: nginx removes its chroot
+from it, so `$document_root/index.php` is also the path php-fpm sees.
+Then:
+
+    rcctl enable php84_fpm nginx
+    rcctl start php84_fpm nginx
 
 ## Installation on Debian
 
@@ -110,7 +156,13 @@ and displayed.
         /etc/sherpass/sherpass.ini
 
 Edit `/etc/sherpass/sherpass.ini`. It may hold the SMTP password, keep
-it readable by root and www-data only. Then set up nginx:
+it readable by root and www-data only. Give PHP its own log in the
+php-fpm pool, for instance in `/etc/php/8.4/fpm/pool.d/www.conf`:
+
+    php_admin_value[error_log] = /var/log/sherpass/php.log
+    php_admin_flag[log_errors] = on
+
+Then set up nginx:
 
     cp /var/www/sherpass/nginx/sherpass.conf.example \
         /etc/nginx/sites-available/sherpass
@@ -122,9 +174,30 @@ Adjust `server_name`, the certificate paths and the php-fpm socket, then
 The example only passes `/` to PHP, serves `style.css` and returns 404
 for anything else. Its request body buffer is as large as the largest
 accepted body: nginx writes bigger bodies to a temporary file, and the
-compose form carries the password in clear. It also tells PHP where the configuration is, through
-the `SHERPASS_CONFIG` FastCGI parameter. Without it, Sherpass reads
-`sherpass.ini` from its top directory.
+compose form carries the password in clear. It also tells PHP where the
+configuration is, through the `SHERPASS_CONFIG` FastCGI parameter.
+Without it, Sherpass reads `sherpass.ini` from its top directory.
+
+## Running in a chroot
+
+Sherpass only needs its own tree, the database directory and a log
+file, which is how it runs on OpenBSD. In any chroot:
+
+* Paths in `sherpass.ini` and in `SHERPASS_CONFIG` are the ones php-fpm
+  sees inside the chroot.
+* `mail()` runs `/bin/sh` and `sendmail`, which a chroot does not have:
+  use `mail_transport = smtp`.
+* On Linux, give `smtp_host` as an address: without `/etc/hosts` in the
+  chroot, glibc cannot resolve `localhost`. OpenBSD resolves it anyway.
+  Other names need `/etc/resolv.conf` in the chroot.
+* Checking a TLS certificate needs the CA certificates in the chroot:
+  point `smtp_cafile` to a copy inside it. On OpenBSD, copying
+  `/etc/ssl/cert.pem` to `/var/www/etc/ssl/cert.pem` works as well.
+* Debian patches PHP to read time zones from `/usr/share/zoneinfo`, and
+  every line PHP logs starts with the time. Without
+  `usr/share/zoneinfo/UTC` in the chroot, a php-fpm worker crashes as
+  soon as PHP logs something. OpenBSD's PHP uses its built-in time zone
+  data and needs nothing.
 
 ## Configuration
 
@@ -172,11 +245,8 @@ but until then they should not end up in logs:
   string out, instead of `$request`.
 * nginx adds the full request line to its error log entries. That
   includes PHP errors when php-fpm returns them over FastCGI, which it
-  does when PHP has no `error_log`. Give PHP its own log in the php-fpm
-  pool, for instance in `/etc/php/8.4/fpm/pool.d/www.conf`:
-
-      php_admin_value[error_log] = /var/log/sherpass/php.log
-      php_admin_flag[log_errors] = on
+  does when PHP has no `error_log`. The installation sections above give
+  PHP its own log for that reason.
 
 ## Tests
 
