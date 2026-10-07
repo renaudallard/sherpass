@@ -560,7 +560,7 @@ as of October 2026:
 
 | | Sherpass | Yopass | PrivateBin | Password Pusher |
 | --- | --- | --- | --- | --- |
-| Encryption | Server, key only in the share link | Browser, OpenPGP | Browser, AES-256-GCM | Server, one key for all pushes |
+| Encryption | Server, XChaCha20-Poly1305, key only in the share link | Browser, OpenPGP with AES-256-GCM | Browser, AES-256-GCM | Server, AES-256-GCM, one key for all pushes |
 | Server sees the password | When shared and displayed | No, unless it serves altered JavaScript | No, unless it serves altered JavaScript | Yes, stored pushes included |
 | JavaScript | None | Required | Required | Used |
 | Who can share | Verified addresses of `allowed_domains` | Anyone, or OIDC with a paid license | Anyone, or an IP allowlist | Anyone, or accounts |
