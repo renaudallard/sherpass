@@ -601,7 +601,7 @@ ok "nothing displayed for a damaged sender"
 # The sender can delete a password until it is displayed.
 sender walter@allard.it
 share "$V" "$T/secret" xavier@example.org
-has 'A mail with a link to delete'
+has 'You will get a mail with a link to delete'
 M=$(lastmail)
 grep -q '^To: walter@allard.it' "$M" || fail "cancel mail To"
 grep -q 'shared a password with xavier@example.org' "$M" ||
@@ -634,7 +634,7 @@ sender nora@allard.it
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
     --data-urlencode "rcpt=oliver@example.org" --data-urlencode "notify=1"
 expect 200 "password shared with a notification asked"
-has 'You will get a mail when the password is displayed'
+has 'You will get another one when the password is displayed'
 S=$(grep -o "$BASE/?s=[A-Za-z0-9_-]*" "$BODY") || fail "no share link"
 S=${S#*s=}
 grep -q 'You will get a mail when it is displayed' "$(lastmail)" ||
@@ -1003,9 +1003,9 @@ smtp_port = $DEAD
 smtp_tls = off"
 noerrors "before a failing cancel mail"
 share "$V" "$T/secret" uma@example.org
-has 'could not be sent'
 grep -qF 'cannot send mail to tina@allard.it' "$T/php.log" ||
     fail "cancel mail did not fail"
+grep -v '\] sherpass: ' "$T/php.log" && fail "PHP logged more than the failure"
 get "$BASE/?s=$S"
 expect 200 "password shared while its cancel mail fails"
 : > "$T/php.log"

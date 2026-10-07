@@ -255,15 +255,19 @@ function do_compose(array $cfg, PDO $db, int $now): void
         invalid();
         return;
     }
-    /* The password is shared either way, the page tells if this failed. */
-    $mailed = mail_cancel($cfg, $sender, $rcpt, utc($expires),
-        $cfg['base_url'] . '/?c=' . token_encode($cancel), $notify);
-    if (!$mailed) {
-        error_log("sherpass: cannot send mail to $sender");
-    }
     respond(200, 'Password shared', view_share(
         $cfg['base_url'] . '/?s=' . token_encode($key), $rcpt,
-        utc($expires), $mailed, $notify));
+        utc($expires), $notify));
+    /*
+     * Only once the page is out: a second press while the mail is sent
+     * would find the sender link used, and the browser would show that
+     * answer instead of the share link.
+     */
+    finish_response();
+    if (!mail_cancel($cfg, $sender, $rcpt, utc($expires),
+        $cfg['base_url'] . '/?c=' . token_encode($cancel), $notify)) {
+        error_log("sherpass: cannot send mail to $sender");
+    }
 }
 
 /*

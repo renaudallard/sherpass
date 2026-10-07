@@ -176,27 +176,23 @@ function view_compose(string $v, string $sender, int $max_ttl, int $ttl,
 }
 
 function view_share(string $url, string $rcpt, string $expires,
-    bool $mailed, bool $notify): string
+    bool $notify): string
 {
     $url = h($url);
     $rcpt = h($rcpt);
     $expires = h($expires);
-    $cancel = $mailed ? '<p class="muted">A mail with a link to delete ' .
-        "the password before it is displayed has been sent to you.</p>\n" :
-        '<p class="error">The mail with a link to delete the password ' .
-        "could not be sent. The share link works all the same.</p>\n";
-    if ($notify) {
-        $cancel .= '<p class="muted">You will get a mail when the ' .
-            "password is displayed.</p>\n";
-    }
+    $told = $notify ? ' You will get another one when the password is ' .
+        'displayed.' : '';
     return <<<HTML
         <p>Send this link to the recipient:</p>
         <pre class="box">$url</pre>
         <p>Anyone can open it, but only <strong>$rcpt</strong> can display
         the password, after entering the code mailed to that email address.
         The password can be displayed once and expires on $expires.</p>
-        $cancel<p class="muted">The share link is not stored on the server.
-        If you lose it, share the password again.</p>
+        <p class="muted">You will get a mail with a link to delete the
+        password before it is displayed.$told</p>
+        <p class="muted">The share link is not stored on the server. If you
+        lose it, share the password again.</p>
         HTML;
 }
 
