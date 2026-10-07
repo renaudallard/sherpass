@@ -234,6 +234,34 @@ cfgtest fail "$SMTP
 smtp_tls_verify = off" "unverified TLS to a remote host rejected"
 cfgtest fail "$SMTP
 smtp_tls_verify = maybe" "invalid smtp_tls_verify rejected"
+cfgtest fail "$GOOD
+smtp_port = 70000" "invalid smtp_port rejected with sendmail"
+cfgtest fail "$GOOD
+smtp_tls = maybe" "invalid smtp_tls rejected with sendmail"
+cfgtest fail "$GOOD
+smtp_user = sherpass" "user without password rejected with sendmail"
+cfgtest fail "$GOOD
+smtp_host = smtp.example.org
+smtp_tls = off" "SMTP without TLS to a remote host rejected with sendmail"
+cfgtest fail "$GOOD
+mail_from_name = \"Sherpass
+\"" "newline in mail_from_name rejected"
+cfgtest fail "$SMTP
+smtp_cafile = $T" "directory as smtp_cafile rejected"
+cfgtest fail "$GOOD
+allowed_domains[] = \"allard.it.\"" "domain with a final dot rejected"
+cfgtest fail "$GOOD
+allowed_domains[] = localhost" "single label domain rejected"
+cfgtest fail "$(echo "$GOOD" | sed "1s|\"\$|/$(head -c 250 /dev/zero |
+    tr '\0' a)\"|")" "overlong base_url rejected"
+cfgtest pass "$GOOD
+mail_transport = smtp
+smtp_host = localhost
+smtp_tls_verify = \"off\"" "quoted off accepted for smtp_tls_verify"
+cfgtest fail "$GOOD
+mail_transport = null" "null mail_transport rejected"
+cfgtest fail "$SMTP
+smtp_tls = null" "null smtp_tls rejected"
 for h in localhost 127.0.0.1 127.1.2.3 ::1; do
     cfgtest pass "$GOOD
 mail_transport = smtp

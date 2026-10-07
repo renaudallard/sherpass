@@ -129,12 +129,14 @@ the `SHERPASS_CONFIG` FastCGI parameter. Without it, Sherpass reads
 
 `sherpass.ini` is a plain INI file. Unknown keys and invalid values are
 rejected, and the site then answers every request with an error and logs
-the reason. `base_url`, `mail_from`, `allowed_domains` and `db_path` are
-mandatory, the other settings have defaults.
+the reason, even for settings the chosen transport does not use.
+`base_url`, `mail_from`, `allowed_domains` and `db_path` are mandatory,
+the other settings have defaults. A setting written `null` is an error,
+not a way to ask for the default.
 
 | Key | Meaning |
 |---|---|
-| `base_url` | Public URL of the site, used to build the links sent by mail. Must use https, plain http is only accepted for localhost. |
+| `base_url` | Public URL of the site, used to build the links sent by mail, at most 256 characters. Must use https, plain http is only accepted for localhost. |
 | `mail_from` | Sender address of every mail. |
 | `mail_from_name` | Display name of the sender, printable ASCII without quotes or backslashes. Defaults to `Sherpass`. |
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
@@ -150,7 +152,7 @@ mandatory, the other settings have defaults.
 | `smtp_tls` | `tls` for TLS from the start, `starttls` to upgrade a plain connection, `off` for a relay without TLS, only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `tls`. |
 | `smtp_port` | SMTP port. Default 465 with `tls`, 587 with `starttls`, 25 with `off`. |
 | `smtp_user`, `smtp_password` | Credentials, set both or none. AUTH PLAIN is used, or AUTH LOGIN if the server only offers that. They require TLS. |
-| `smtp_cafile` | Absolute path of the CA certificates to verify the server with, for a private CA. The system CAs are used otherwise. |
+| `smtp_cafile` | Absolute path of a file with the CA certificates to verify the server with, for a private CA. The system CAs are used otherwise. |
 | `smtp_tls_verify` | `off` skips the certificate check. Only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `on`. |
 
 Behind a reverse proxy, every request comes from the proxy address, so

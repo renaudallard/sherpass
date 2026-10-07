@@ -56,18 +56,20 @@ function config_load(string $path): array
     }
 
     /* The shell run by mail() would drop quotes passed with -f. */
-    $from = email_normalize($ini['mail_from'] ?? null);
+    $from = email_normalize(config_get($ini, 'mail_from', null));
     if ($from === null || str_contains($from, "'")) {
         throw new RuntimeException('mail_from must be a plain address ' .
             'without quotes');
     }
 
     return [
-        'base_url' => config_base_url($ini['base_url'] ?? null),
+        'base_url' => config_base_url(config_get($ini, 'base_url', null)),
         'mail_from' => $from,
-        'mail_from_name' => config_name($ini['mail_from_name'] ?? 'Sherpass'),
-        'allowed_domains' => config_domains($ini['allowed_domains'] ?? null),
-        'db_path' => config_path($ini['db_path'] ?? null),
+        'mail_from_name' => config_name(config_get($ini, 'mail_from_name',
+            'Sherpass')),
+        'allowed_domains' => config_domains(config_get($ini,
+            'allowed_domains', null)),
+        'db_path' => config_path(config_get($ini, 'db_path', null)),
         'secret_ttl' => config_int($ini, 'secret_ttl', 2592000, 1),
         'token_ttl' => config_int($ini, 'token_ttl', 1800, 1),
         'ip_limit' => config_int($ini, 'ip_limit', 30, 1),
@@ -80,9 +82,10 @@ function config_load(string $path): array
 }
 
 /**
- * Mail transport settings. smtp_tls is tls, starttls or none, the latter
- * written off in the file. TLS and certificate verification can only be
- * turned off for a server on the loopback interface.
+ * Mail transport settings, checked even when they are not used. smtp_tls
+ * is tls, starttls or none, the latter written off in the file. TLS and
+ * certificate verification can only be turned off for a server on the
+ * loopback interface.
  *
  * @param array<string, mixed> $ini
  * @return array{mail_transport: string, smtp_host: string, smtp_port: int,
@@ -91,47 +94,36 @@ function config_load(string $path): array
  */
 function config_mail(array $ini): array
 {
-    $transport = $ini['mail_transport'] ?? 'sendmail';
-    if ($transport === 'sendmail') {
-        return [
-            'mail_transport' => 'sendmail',
-            'smtp_host' => '',
-            'smtp_port' => 0,
-            'smtp_tls' => 'none',
-            'smtp_user' => '',
-            'smtp_password' => '',
-            'smtp_cafile' => '',
-            'smtp_tls_verify' => true,
-        ];
-    }
-    if ($transport !== 'smtp') {
+    $transport = config_get($ini, 'mail_transport', 'sendmail');
+    if ($transport !== 'sendmail' && $transport !== 'smtp') {
         throw new RuntimeException('mail_transport must be sendmail or smtp');
     }
 
-    $host = $ini['smtp_host'] ?? null;
-    if (!is_string($host) || (filter_var($host, FILTER_VALIDATE_DOMAIN,
+    $host = config_get($ini, 'smtp_host', '');
+    if (!is_string($host) || ($host !== '' &&
+        filter_var($host, FILTER_VALIDATE_DOMAIN,
         FILTER_FLAG_HOSTNAME) === false &&
         filter_var($host, FILTER_VALIDATE_IP) === false)) {
         throw new RuntimeException('smtp_host must be a host name or an ' .
             'IP address');
     }
+    if ($host === '' && $transport === 'smtp') {
+        throw new RuntimeException('smtp_host is mandatory with ' .
+            'mail_transport = smtp');
+    }
 
-    $tls = $ini['smtp_tls'] ?? 'tls';
+    $tls = config_get($ini, 'smtp_tls', 'tls');
     if ($tls === false || $tls === 'off') {
         $tls = 'none';
     }
     if (!in_array($tls, ['tls', 'starttls', 'none'], true)) {
         throw new RuntimeException('smtp_tls must be tls, starttls or off');
     }
-    if ($tls === 'none' && !config_loopback($host)) {
-        throw new RuntimeException('smtp_tls can only be off for ' .
-            'localhost, 127.0.0.0/8 or ::1');
-    }
     $port = config_int($ini, 'smtp_port',
         ['tls' => 465, 'starttls' => 587, 'none' => 25][$tls], 1, 65535);
 
-    $user = $ini['smtp_user'] ?? '';
-    $pass = $ini['smtp_password'] ?? '';
+    $user = config_get($ini, 'smtp_user', '');
+    $pass = config_get($ini, 'smtp_password', '');
     if (!is_string($user) || preg_match('/[\x00-\x1f\x7f]/', $user) === 1) {
         throw new RuntimeException('smtp_user must be a quoted string ' .
             'without control characters');
@@ -144,29 +136,35 @@ function config_mail(array $ini): array
         throw new RuntimeException('smtp_user and smtp_password must be ' .
             'set together');
     }
-    if ($user !== '' && $tls === 'none') {
-        throw new RuntimeException('smtp_user requires smtp_tls, ' .
-            'credentials are never sent in clear');
-    }
 
-    $cafile = $ini['smtp_cafile'] ?? '';
+    $cafile = config_get($ini, 'smtp_cafile', '');
     if (!is_string($cafile) || ($cafile !== '' &&
-        (!str_starts_with($cafile, '/') || !is_readable($cafile)))) {
+        (!str_starts_with($cafile, '/') || !is_file($cafile) ||
+        !is_readable($cafile)))) {
         throw new RuntimeException('smtp_cafile must be the absolute path ' .
             'of a readable file');
     }
 
-    $verify = $ini['smtp_tls_verify'] ?? true;
-    if (!is_bool($verify)) {
-        throw new RuntimeException('smtp_tls_verify must be on or off');
-    }
-    if (!$verify && !config_loopback($host)) {
-        throw new RuntimeException('smtp_tls_verify can only be off for ' .
-            'localhost, 127.0.0.0/8 or ::1');
+    $verify = config_bool($ini, 'smtp_tls_verify', true);
+
+    if ($host !== '') {
+        $local = config_loopback($host);
+        if ($tls === 'none' && !$local) {
+            throw new RuntimeException('smtp_tls can only be off for ' .
+                'localhost, 127.0.0.0/8 or ::1');
+        }
+        if (!$verify && !$local) {
+            throw new RuntimeException('smtp_tls_verify can only be off ' .
+                'for localhost, 127.0.0.0/8 or ::1');
+        }
+        if ($user !== '' && $tls === 'none') {
+            throw new RuntimeException('smtp_user requires smtp_tls, ' .
+                'credentials are never sent in clear');
+        }
     }
 
     return [
-        'mail_transport' => 'smtp',
+        'mail_transport' => $transport,
         'smtp_host' => $host,
         'smtp_port' => $port,
         'smtp_tls' => $tls,
@@ -196,6 +194,11 @@ function config_base_url(mixed $v): string
     if (!is_string($v) || filter_var($v, FILTER_VALIDATE_URL) === false) {
         throw new RuntimeException('base_url must be a URL');
     }
+    /* Mail lines are limited to 998 characters, links must fit. */
+    if (strlen($v) > 256) {
+        throw new RuntimeException('base_url must be at most 256 ' .
+            'characters long');
+    }
     $u = parse_url($v);
     if ($u === false) {
         throw new RuntimeException('base_url must be a URL');
@@ -220,7 +223,7 @@ function config_base_url(mixed $v): string
  */
 function config_name(mixed $v): string
 {
-    if (!is_string($v) || preg_match('/^[\x20-\x7e]{1,64}$/', $v) !== 1 ||
+    if (!is_string($v) || preg_match('/^[\x20-\x7e]{1,64}$/D', $v) !== 1 ||
         strpbrk($v, '"\\') !== false) {
         throw new RuntimeException('mail_from_name must be 1 to 64 ' .
             'printable ASCII characters without quotes or backslashes');
@@ -228,7 +231,10 @@ function config_name(mixed $v): string
     return $v;
 }
 
-/**
+/*
+ * A domain is only useful if an address can be at it, so it is checked
+ * as one.
+ *
  * @return list<string>
  */
 function config_domains(mixed $v): array
@@ -242,12 +248,12 @@ function config_domains(mixed $v): array
     }
     $domains = [];
     foreach ($v as $d) {
-        if (!is_string($d) || $d === '' || filter_var($d,
-            FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) === false) {
+        $e = is_string($d) ? email_normalize("postmaster@$d") : null;
+        if ($e === null) {
             throw new RuntimeException('allowed_domains contains an ' .
                 'invalid domain');
         }
-        $domains[] = strtolower($d);
+        $domains[] = email_domain($e);
     }
     return $domains;
 }
@@ -256,6 +262,34 @@ function config_path(mixed $v): string
 {
     if (!is_string($v) || !str_starts_with($v, '/')) {
         throw new RuntimeException('db_path must be an absolute path');
+    }
+    return $v;
+}
+
+/**
+ * Value of the setting $name, $default only if it is absent. A setting
+ * written null is kept as null and then rejected, not taken as unset.
+ *
+ * @param array<string, mixed> $ini
+ */
+function config_get(array $ini, string $name, mixed $default): mixed
+{
+    return array_key_exists($name, $ini) ? $ini[$name] : $default;
+}
+
+/**
+ * Boolean setting, on or off, quoted or not.
+ *
+ * @param array<string, mixed> $ini
+ */
+function config_bool(array $ini, string $name, bool $default): bool
+{
+    $v = config_get($ini, $name, $default);
+    if ($v === 'on' || $v === 'off') {
+        $v = $v === 'on';
+    }
+    if (!is_bool($v)) {
+        throw new RuntimeException("$name must be on or off");
     }
     return $v;
 }
