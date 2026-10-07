@@ -83,10 +83,10 @@ function config_load(string $path): array
 }
 
 /**
- * Mail transport settings, checked even when they are not used. smtp_tls
- * is tls, starttls or none, the latter written off in the file. TLS and
- * certificate verification can only be turned off for a server on the
- * loopback interface.
+ * Mail transport settings. smtp_* settings are refused with the sendmail
+ * transport. smtp_tls is tls, starttls or none, the latter written off in
+ * the file. TLS and certificate verification can only be turned off for a
+ * server on the loopback interface.
  *
  * @param array<string, mixed> $ini
  * @return array{mail_transport: string, smtp_host: string, smtp_port: int,
@@ -98,6 +98,14 @@ function config_mail(array $ini): array
     $transport = config_get($ini, 'mail_transport', 'sendmail');
     if ($transport !== 'sendmail' && $transport !== 'smtp') {
         throw new RuntimeException('mail_transport must be sendmail or smtp');
+    }
+    /* SMTP settings are a sign the default transport was not meant. */
+    if ($transport === 'sendmail') {
+        foreach (array_keys($ini) as $k) {
+            if (str_starts_with($k, 'smtp_')) {
+                throw new RuntimeException("$k needs mail_transport = smtp");
+            }
+        }
     }
 
     $host = config_get($ini, 'smtp_host', '');

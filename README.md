@@ -277,7 +277,8 @@ how it runs on OpenBSD, where PHP logs to syslog. In any chroot:
 
 `sherpass.ini` is a plain INI file. Unknown keys and invalid values are
 rejected, and the site then answers every request with an error and logs
-the reason, even for settings the chosen transport does not use.
+the reason. `smtp_*` settings are refused unless `mail_transport` is
+`smtp`, so that they cannot be left unused by mistake.
 `base_url`, `mail_from`, `allowed_domains` and `db_path` are mandatory,
 the other settings have defaults. A setting written `null` is an error,
 not a way to ask for the default.
@@ -295,7 +296,7 @@ not a way to ask for the default.
 | `sender_limit` | Sender mails per address per hour. Default 3. |
 | `recipient_limit` | Codes mailed per password per hour. Default 3. |
 | `recipient_delay` | Minimum delay between two codes mailed for the same password, in seconds, 0 to 3600. Default 60. |
-| `mail_transport` | `sendmail` to hand mails to the local MTA through PHP `mail()`, `smtp` to talk to an SMTP server directly. Default `sendmail`. |
+| `mail_transport` | `sendmail` to hand mails to the local MTA through PHP `mail()`, `smtp` to talk to an SMTP server directly. Default `sendmail`, which refuses any `smtp_*` setting. |
 | `smtp_host` | SMTP server name or IP address, mandatory with `smtp`. |
 | `smtp_tls` | `tls` for TLS from the start, `starttls` to upgrade a plain connection, `off` for a relay without TLS, only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `tls`. |
 | `smtp_port` | SMTP port. Default 465 with `tls`, 587 with `starttls`, 25 with `off`. |

@@ -50,7 +50,8 @@ recipient_delay = 60
 ; with smtp_tls = off is enough.
 ;mail_transport = sendmail
 
-; SMTP server, mandatory with mail_transport = smtp.
+; SMTP server, mandatory with mail_transport = smtp. Like any smtp_*
+; setting, it is refused with mail_transport = sendmail.
 ;smtp_host = "smtp.example.org"
 
 ; tls for TLS from the start, starttls to upgrade a plain connection,

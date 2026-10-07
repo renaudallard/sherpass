@@ -274,6 +274,12 @@ smtp_tls_verify = off" "unverified TLS to a remote host rejected"
 cfgtest fail "$SMTP
 smtp_tls_verify = maybe" "invalid smtp_tls_verify rejected"
 cfgtest fail "$GOOD
+smtp_host = localhost
+smtp_tls = off" "SMTP settings without mail_transport = smtp rejected"
+cfgtest fail "$GOOD
+mail_transport = sendmail
+smtp_tls_verify = off" "SMTP setting with mail_transport = sendmail rejected"
+cfgtest fail "$GOOD
 smtp_port = 70000" "invalid smtp_port rejected with sendmail"
 cfgtest fail "$GOOD
 smtp_tls = maybe" "invalid smtp_tls rejected with sendmail"
