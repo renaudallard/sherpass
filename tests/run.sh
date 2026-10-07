@@ -649,7 +649,8 @@ sender kate@allard.it
 ok "sender mail over TLS"
 M=$(lastmail)
 grep -q '^To: kate@allard.it' "$M" || fail "SMTP mail To"
-grep -q '^Subject: Confirm your address' "$M" || fail "SMTP mail Subject"
+grep -q '^Subject: Confirm your email address' "$M" ||
+    fail "SMTP mail Subject"
 grep -q '^Date: ' "$M" || fail "SMTP mail Date"
 grep -q '^Message-ID: <[0-9a-f]\{32\}@allard.it>' "$M" ||
     fail "SMTP Message-ID"

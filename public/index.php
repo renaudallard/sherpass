@@ -88,12 +88,13 @@ function do_start(array $cfg, PDO $db, int $now): void
     $title = 'Share a password';
     $email = email_normalize($_POST['email'] ?? null);
     if ($email === null) {
-        respond(400, $title, view_start('This is not a valid address.'));
+        respond(400, $title, view_start('This is not a valid email ' .
+            'address.'));
         return;
     }
     if (!in_array(email_domain($email), $cfg['allowed_domains'], true)) {
-        respond(403, $title, view_start('This address is not allowed to ' .
-            'share passwords.', $email));
+        respond(403, $title, view_start('This email address is not ' .
+            'allowed to share passwords.', $email));
         return;
     }
 
@@ -188,7 +189,7 @@ function do_compose(array $cfg, PDO $db, int $now): void
     $rcpt = email_normalize($rcpt_in);
     if ($rcpt === null) {
         respond(400, $title, view_compose($v, $sender, 'The recipient ' .
-            'address is not valid.', $secret, $rcpt_in));
+            'email address is not valid.', $secret, $rcpt_in));
         return;
     }
 
@@ -273,7 +274,7 @@ function do_claim(array $cfg, PDO $db, int $now): void
     $email = email_normalize($_POST['email'] ?? null);
     if ($email === null) {
         respond(400, 'Receive a password',
-            view_claim($s, 'This is not a valid address.'));
+            view_claim($s, 'This is not a valid email address.'));
         return;
     }
 

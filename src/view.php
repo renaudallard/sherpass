@@ -78,10 +78,10 @@ function view_start(string $error = '', string $email = ''): string
     $email = h($email);
     $emax = EMAIL_MAX;
     return <<<HTML
-        $err<p>Enter your address. You will receive a link to share a
+        $err<p>Enter your email address. You will receive a link to share a
         password.</p>
         <form method="post" action="./">
-        <label for="email">Your address</label>
+        <label for="email">Your email address</label>
         <input type="email" id="email" name="email" value="$email"
          maxlength="$emax" autocomplete="email" required autofocus>
         <button type="submit">Continue</button>
@@ -121,7 +121,7 @@ function view_compose(string $v, string $sender, string $error = '',
         <textarea id="secret" name="secret" maxlength="$max" required
          autocomplete="off" autocapitalize="off" spellcheck="false">
         $secret</textarea>
-        <label for="rcpt">Recipient address</label>
+        <label for="rcpt">Recipient email address</label>
         <input type="email" id="rcpt" name="rcpt" value="$rcpt"
          maxlength="$emax" autocomplete="off" required>
         <button type="submit">Share</button>
@@ -138,8 +138,8 @@ function view_share(string $url, string $rcpt, string $expires): string
         <p>Send this link to the recipient:</p>
         <pre class="box">$url</pre>
         <p>Anyone can open it, but only <strong>$rcpt</strong> can display
-        the password, after confirming the address by mail. The password
-        can be displayed once and expires on $expires.</p>
+        the password, after entering the code mailed to that email address.
+        The password can be displayed once and expires on $expires.</p>
         <p class="muted">The link is not stored on the server. If you lose
         it, share the password again.</p>
         HTML;
@@ -153,11 +153,11 @@ function view_claim(string $s, string $error = '',
     $s = h($s);
     $emax = EMAIL_MAX;
     return <<<HTML
-        $err<p>A password is waiting for its recipient. Enter your address
-        to receive a code that displays it.</p>
+        $err<p>A password is waiting for its recipient. Enter your email
+        address to receive a code that displays it.</p>
         <form method="post" action="./">
         <input type="hidden" name="s" value="$s">
-        <label for="email">Your address</label>
+        <label for="email">Your email address</label>
         <input type="email" id="email" name="email" maxlength="$emax"
          autocomplete="email" required autofocus>
         <button type="submit">Continue</button>
@@ -181,11 +181,11 @@ function view_claim_sent(string $s, int $ttl, int $limit,
         '');
     $rate = h($rate);
     return <<<HTML
-        <p>If this address is the recipient of the password, a code has
-        been mailed to it, within the limits below. Enter it here within
-        $ttl.</p>
+        <p>If this is the recipient's email address, a code has been mailed
+        to it, within the limits below. Enter it here within $ttl.</p>
         $code
-        <p class="muted">No mail? Check the address and your spam folder.
+        <p class="muted">No mail? Check the email address and your spam
+        folder.
         A code is sent at most $rate, and each new one replaces the
         previous one. If you leave this page, open the share link again to
         enter the code.</p>

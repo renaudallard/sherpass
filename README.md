@@ -60,13 +60,13 @@ gives nginx and php-fpm.
 
 ## How it works
 
-1. The sender enters their address on the site. If its domain is in
-   `allowed_domains`, a link is mailed to it.
+1. The sender enters their email address on the site. If its domain is
+   in `allowed_domains`, a link is mailed to it.
 2. The link leads to a form where the sender enters the password and the
-   recipient address. Submitting it returns a share link. A sender link
+   recipient's email address. Submitting it returns a share link. A sender link
    can be used for one password only.
 3. The share link can be sent to the recipient by any means. Whoever
-   opens it is asked for their address. If it is the recipient address,
+   opens it is asked for their email address. If it is the recipient's,
    a code is mailed to it. The page says the same thing either way, so
    the share link alone does not reveal who the recipient is.
 4. The recipient enters the code on the share page, which displays the

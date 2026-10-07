@@ -99,7 +99,8 @@ function mail_sender(array $cfg, string $to, string $link): bool
         this request, ignore this mail.
 
         TXT;
-    return mail_send($cfg, $to, 'Confirm your address to share a password',
+    return mail_send($cfg, $to, 'Confirm your email address to share a ' .
+        'password',
         $body);
 }
 
