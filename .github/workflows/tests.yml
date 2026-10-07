@@ -32,13 +32,16 @@ jobs:
         with:
           persist-credentials: false
 
-      # OpenBSD 7.9, whose PHP 8.4 has sodium built in.
+      # OpenBSD 7.9, whose PHP 8.4 has sodium built in. The packages of
+      # the image come from the release, while pkg_add takes PHP from the
+      # stable updates, built against newer libraries: update them first.
       - name: Run the tests in an OpenBSD VM
         uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
         with:
           release: "7.9"
           copyback: false
           prepare: |
+            pkg_add -Iu
             pkg_add -I php%8.4 php-pdo_sqlite%8.4 curl
             ln -sf ../php-8.4.sample/pdo_sqlite.ini /etc/php-8.4/
             ln -sf php-8.4 /usr/local/bin/php
