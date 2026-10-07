@@ -346,6 +346,7 @@ ok "repeated claim throttled"
 get "$BASE/?s=$S&r=$R"
 expect 200 "reveal confirmation page"
 has 'Display the password'
+has 'Press the button only once'
 has 'alice@allard.it'
 get "$BASE/?s=$S&r=$R"
 expect 200 "reveal link survives a GET"

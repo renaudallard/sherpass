@@ -176,6 +176,9 @@ function view_reveal(string $s, string $r, string $sender): string
         <p><strong>$sender</strong> has shared a password with you.</p>
         <p>It can be displayed only once. It is deleted from the server
         right after.</p>
+        <p class="error">Press the button only once and wait for the page.
+        A second press would only show that the link has been used, and
+        the password would be lost.</p>
         <form method="post" action="./">
         <input type="hidden" name="s" value="$s">
         <input type="hidden" name="r" value="$r">

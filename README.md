@@ -38,7 +38,10 @@ one.
   stored, and each one works once.
 * Mail security scanners fetch the links they find in mail. Following a
   link never consumes anything: displaying the password requires
-  pressing a button, which sends a POST request.
+  pressing a button, which sends a POST request. The page asks to press
+  it only once: a browser shows the answer to the last press, so a
+  double click would display "already used" while the first press
+  consumed the password.
 * When the password is displayed, the secret is first marked as claimed,
   in a transaction that serializes concurrent requests, so only one of
   them can display it. The page is then handed to the web server with
