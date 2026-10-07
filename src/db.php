@@ -125,8 +125,23 @@ function throttle_ip(): string
     return 'ip:' . inet_ntop(substr($bin, -4));
 }
 
-function throttle_hit(PDO $db, string $name, int $now): void
+/*
+ * Record an event for $name and return its row, so that it can be taken
+ * back if the mail it stands for could not be sent.
+ */
+function throttle_hit(PDO $db, string $name, int $now): int
 {
     db_query($db, 'INSERT INTO throttle (name, ts) VALUES (?, ?)',
         [$name, $now]);
+    return (int)$db->lastInsertId();
+}
+
+/**
+ * @param list<int> $rows
+ */
+function throttle_undo(PDO $db, array $rows): void
+{
+    foreach ($rows as $row) {
+        db_query($db, 'DELETE FROM throttle WHERE rowid = ?', [$row]);
+    }
 }

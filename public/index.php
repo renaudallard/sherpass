@@ -100,21 +100,19 @@ function do_start(array $cfg, PDO $db, int $now): void
     $token = token_new();
     $ip = throttle_ip();
     $from = 'from:' . $email;
-    $ok = db_tx($db, function () use ($db, $now, $cfg, $token, $email,
-        $ip, $from): bool {
+    $hits = db_tx($db, function () use ($db, $now, $cfg, $token, $email,
+        $ip, $from): ?array {
         if (!throttle_ok($db, $ip, $cfg['ip_limit'], THROTTLE_WINDOW,
             $now) || !throttle_ok($db, $from, $cfg['sender_limit'],
             THROTTLE_WINDOW, $now)) {
-            return false;
+            return null;
         }
-        throttle_hit($db, $ip, $now);
-        throttle_hit($db, $from, $now);
         db_query($db, 'INSERT INTO sender (hash, email, expires) ' .
             'VALUES (?, ?, ?)',
             [token_hash($token), $email, $now + $cfg['token_ttl']]);
-        return true;
+        return [throttle_hit($db, $ip, $now), throttle_hit($db, $from, $now)];
     });
-    if (!$ok) {
+    if ($hits === null) {
         too_many();
         return;
     }
@@ -122,6 +120,12 @@ function do_start(array $cfg, PDO $db, int $now): void
     $link = $cfg['base_url'] . '/?v=' . token_encode($token);
     if (!mail_sender($cfg, $email, $link)) {
         error_log("sherpass: cannot send mail to $email");
+        /* Nothing went out: take back the link and what it counted. */
+        db_tx($db, function () use ($db, $token, $hits): void {
+            db_query($db, 'DELETE FROM sender WHERE hash = ?',
+                [token_hash($token)]);
+            throttle_undo($db, $hits);
+        });
         respond(500, 'Error', view_message('The mail could not be sent. ' .
             'Try again later.'));
         return;
@@ -274,15 +278,14 @@ function do_claim(array $cfg, PDO $db, int $now): void
     }
 
     $ip = throttle_ip();
-    $ok = db_tx($db, function () use ($db, $now, $cfg, $ip): bool {
+    $iphit = db_tx($db, function () use ($db, $now, $cfg, $ip): ?int {
         if (!throttle_ok($db, $ip, $cfg['ip_limit'], THROTTLE_WINDOW,
             $now)) {
-            return false;
+            return null;
         }
-        throttle_hit($db, $ip, $now);
-        return true;
+        return throttle_hit($db, $ip, $now);
     });
-    if (!$ok) {
+    if ($iphit === null) {
         too_many();
         return;
     }
@@ -292,8 +295,8 @@ function do_claim(array $cfg, PDO $db, int $now): void
 
     $r = token_new();
     $name = 'secret:' . $id;
-    $sender = db_tx($db, function () use ($db, $now, $cfg, $id, $tag, $email,
-        $r, $name): ?string {
+    $found = db_tx($db, function () use ($db, $now, $cfg, $id, $tag, $email,
+        $r, $name): ?array {
         $row = secret_row($db, $id, $now);
         if ($row === false ||
             !hash_equals($row['rcpt'], rcpt_tag($email, $tag)) ||
@@ -302,16 +305,20 @@ function do_claim(array $cfg, PDO $db, int $now): void
             THROTTLE_WINDOW, $now)) {
             return null;
         }
-        throttle_hit($db, $name, $now);
         db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
             'WHERE id = ?', [token_hash($r), $now + $cfg['token_ttl'], $id]);
-        return $row['sender'];
+        return [$row['sender'], throttle_hit($db, $name, $now)];
     });
-    if ($sender === null) {
+    if ($found === null) {
         return;
     }
+    [$sender, $hit] = $found;
     if (!mail_recipient($cfg, $email, $sender, code_encode($r))) {
         error_log("sherpass: cannot send the code of secret $id");
+        /* The page is out already, a new try must not be refused. */
+        db_tx($db, function () use ($db, $iphit, $hit): void {
+            throttle_undo($db, [$iphit, $hit]);
+        });
     }
 }
 

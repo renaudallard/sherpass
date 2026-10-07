@@ -728,6 +728,54 @@ smtp_tls = starttls
 smtp_cafile = $T/smtp.crt" "does not offer STARTTLS" \
     "missing STARTTLS rejected"
 
+# A mail that cannot be sent counts against no limit. Nothing listens on
+# the port given to SMTP below.
+
+DEAD=$((PORT + 9))
+IPN=$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'ip:127.0.0.1'")
+noerrors "before failing sender mails"
+webconfig "sender_limit = 1
+mail_transport = smtp
+smtp_host = localhost
+smtp_port = $DEAD
+smtp_tls = off"
+for n in 1 2; do
+    post "$BASE/" --data-urlencode "email=quinn@allard.it"
+    expect 500 "failing sender mail $n not throttled"
+done
+[ "$(sql "SELECT COUNT(*) FROM sender WHERE email = 'quinn@allard.it'")" = 0 ] ||
+    fail "sender link kept after a failed mail"
+[ "$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'from:quinn@allard.it'")" = 0 ] ||
+    fail "failed sender mail counted"
+[ "$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'ip:127.0.0.1'")" = "$IPN" ] ||
+    fail "failed sender mail counted for the client"
+ok "failed sender mails leave no link and no count"
+grep -v '\] sherpass: ' "$T/php.log" && fail "PHP logged more than the failures"
+: > "$T/php.log"
+
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_PLAIN
+smtp_tls = off"
+MAILDIR=$T/smtp-plain
+sender rita@allard.it
+share "$V" "$T/secret" sam@example.org
+noerrors "before a failing code mail"
+smtpconfig "smtp_host = localhost
+smtp_port = $DEAD
+smtp_tls = off"
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=sam@example.org"
+expect 200 "claim answered while the code mail fails"
+grep -qF 'cannot send the code' "$T/php.log" || fail "code mail did not fail"
+grep -v '\] sherpass: ' "$T/php.log" && fail "PHP logged more than the failure"
+: > "$T/php.log"
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_PLAIN
+smtp_tls = off"
+N=$(nmail)
+claim "$S" sam@example.org
+[ "$(nmail)" = $((N + 1)) ] || fail "failed code mail counted"
+ok "failed code mail does not delay the next one"
+
 # A lone dot and lines starting with one must survive DATA.
 printf '.first\r\n.\r\nline\r\n..two\r\n' > "$T/dots"
 php -r 'require $argv[1] . "/src/smtp.php";
