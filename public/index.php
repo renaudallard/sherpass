@@ -100,7 +100,8 @@ function do_start(array $cfg, PDO $db, int $now): void
 
     $token = token_new();
     $ip = throttle_ip();
-    $from = 'from:' . $email;
+    /* Subaddresses, user+tag, reach the same mailbox and share its limit. */
+    $from = 'from:' . preg_replace('/\+[^@]*@/', '@', $email);
     $hit = db_tx($db, function () use ($db, $now, $cfg, $token, $email,
         $ip, $from): ?int {
         if (!throttle_ok($db, $ip, $cfg['ip_limit'], THROTTLE_WINDOW,

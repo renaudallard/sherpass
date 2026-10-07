@@ -331,7 +331,7 @@ not a way to ask for the default.
 | `secret_ttl` | Lifetime of an unclaimed password, in seconds, at most 31536000 (a year). Default 2592000 (30 days). |
 | `token_ttl` | Lifetime of the sender link and of the recipient code sent by mail, in seconds, at most 86400 (a day). Default 1800 (30 minutes). |
 | `ip_limit` | Requests that can send a mail, an address entered on the start page or on a share page, per client and per hour. A client is an IPv4 address or an IPv6 /64. Default 30. Raise it if many users share one address, behind NAT for instance. |
-| `sender_limit` | Sender mails per address per hour. Default 3. |
+| `sender_limit` | Sender mails per address per hour, subaddresses such as `user+tag` counting as `user`. Default 3. |
 | `recipient_limit` | Codes mailed per password per hour. Default 3. |
 | `recipient_delay` | Minimum delay between two codes mailed for the same password, in seconds, 0 to 3600. Default 60. |
 | `mail_transport` | `sendmail` to hand mails to the local MTA through PHP `mail()`, `smtp` to talk to an SMTP server directly. Default `sendmail`, which refuses any `smtp_*` setting. |

@@ -579,6 +579,8 @@ EOF
 sender grace@allard.it
 post "$BASE/" --data-urlencode "email=grace@allard.it"
 expect 429 "configured sender limit applied"
+post "$BASE/" --data-urlencode "email=grace+tag@allard.it"
+expect 429 "subaddress shares the sender limit"
 share "$V" "$T/secret" ivan@example.org
 N=$(nmail)
 claim "$S" ivan@example.org
