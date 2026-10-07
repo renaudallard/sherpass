@@ -23,11 +23,6 @@ require __DIR__ . '/../src/db.php';
 require __DIR__ . '/../src/mail.php';
 require __DIR__ . '/../src/view.php';
 
-const IP_MAX = 30;          /* POST requests per client IP per hour */
-const SENDER_MAX = 3;       /* sender mails per address per hour */
-const RCPT_MAX = 3;         /* recipient mails per secret per hour */
-const RCPT_DELAY = 60;      /* seconds between two recipient mails */
-
 function main(array $cfg, PDO $db, int $now): void
 {
     $method = $_SERVER['REQUEST_METHOD'] ?? '';
@@ -111,8 +106,9 @@ function do_start(array $cfg, PDO $db, int $now): void
     $from = 'from:' . $email;
     $ok = db_tx($db, function () use ($db, $now, $cfg, $token, $email,
         $ip, $from): bool {
-        if (!throttle_ok($db, $ip, IP_MAX, THROTTLE_WINDOW, $now) ||
-            !throttle_ok($db, $from, SENDER_MAX, THROTTLE_WINDOW, $now)) {
+        if (!throttle_ok($db, $ip, $cfg['ip_limit'], THROTTLE_WINDOW,
+            $now) || !throttle_ok($db, $from, $cfg['sender_limit'],
+            THROTTLE_WINDOW, $now)) {
             return false;
         }
         throttle_hit($db, $ip, $now);
@@ -264,7 +260,8 @@ function do_claim(array $cfg, PDO $db, int $now): void
     $sender = null;
     $state = db_tx($db, function () use ($db, $now, $cfg, $id, $tag, $email,
         $r, $ip, $name, &$sender): string {
-        if (!throttle_ok($db, $ip, IP_MAX, THROTTLE_WINDOW, $now)) {
+        if (!throttle_ok($db, $ip, $cfg['ip_limit'], THROTTLE_WINDOW,
+            $now)) {
             return 'throttled';
         }
         throttle_hit($db, $ip, $now);
@@ -275,8 +272,9 @@ function do_claim(array $cfg, PDO $db, int $now): void
             return 'invalid';
         }
         if (!hash_equals($row['rcpt'], rcpt_tag($email, $tag)) ||
-            !throttle_ok($db, $name, 1, RCPT_DELAY, $now) ||
-            !throttle_ok($db, $name, RCPT_MAX, THROTTLE_WINDOW, $now)) {
+            !throttle_ok($db, $name, 1, $cfg['recipient_delay'], $now) ||
+            !throttle_ok($db, $name, $cfg['recipient_limit'],
+            THROTTLE_WINDOW, $now)) {
             return 'done';
         }
         throttle_hit($db, $name, $now);

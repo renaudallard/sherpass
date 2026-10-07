@@ -127,7 +127,20 @@ cfgtest fail "$(echo "$GOOD" | sed 's/^secret_ttl.*/secret_ttl = 30d/')" \
     "non numeric ttl rejected"
 cfgtest fail "$(echo "$GOOD" | sed 's/^token_ttl.*/token_ttl = 0/')" \
     "zero ttl rejected"
-cfgtest fail "$(echo "$GOOD" | sed '/^secret_ttl/d')" "missing ttl rejected"
+cfgtest pass "$(echo "$GOOD" | sed '/_ttl/d')" "missing ttls use defaults"
+cfgtest pass "$GOOD
+ip_limit = 500
+sender_limit = 1
+recipient_limit = 10
+recipient_delay = 0" "rate limits accepted"
+cfgtest fail "$GOOD
+ip_limit = 0" "zero limit rejected"
+cfgtest fail "$GOOD
+sender_limit = -1" "negative limit rejected"
+cfgtest fail "$GOOD
+recipient_delay = 3601" "delay over an hour rejected"
+cfgtest fail "$GOOD
+recipient_limit = many" "non numeric limit rejected"
 cfgtest fail "$(echo "$GOOD" | sed '/^allowed_domains/d')" \
     "missing domains rejected"
 cfgtest fail "$(echo "$GOOD" | sed 's|^db_path.*|db_path = "sherpass.db"|')" \
@@ -338,6 +351,29 @@ for n in 1 2 3; do
 done
 post "$BASE/" --data-urlencode "email=frank@allard.it"
 expect 429 "sender mails throttled"
+
+# The configuration is read on every request, limits can change here.
+cat >> "$T/sherpass.ini" <<EOF
+sender_limit = 1
+recipient_limit = 2
+recipient_delay = 0
+EOF
+sender grace@allard.it
+post "$BASE/" --data-urlencode "email=grace@allard.it"
+expect 429 "configured sender limit applied"
+share "$V" "$T/secret" ivan@example.org
+N=$(nmail)
+claim "$S" ivan@example.org
+claim "$S" ivan@example.org
+[ "$(nmail)" = $((N + 2)) ] || fail "configured recipient delay not applied"
+ok "configured recipient delay applied"
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=ivan@example.org"
+expect 200 "claim over the recipient limit answered"
+[ "$(nmail)" = $((N + 2)) ] || fail "configured recipient limit not applied"
+ok "configured recipient limit applied"
+echo "ip_limit = 1" >> "$T/sherpass.ini"
+post "$BASE/" --data-urlencode "email=judy@allard.it"
+expect 429 "configured IP limit applied"
 
 [ -s "$T/php.log" ] && fail "PHP logged errors: $(cat "$T/php.log")"
 ok "no PHP errors logged"

@@ -14,15 +14,23 @@ const CONFIG_KEYS = [
     'db_path',
     'secret_ttl',
     'token_ttl',
+    'ip_limit',
+    'sender_limit',
+    'recipient_limit',
+    'recipient_delay',
 ];
+
+/* Upper bound of numeric settings, far from any overflow. */
+const CONFIG_INT_MAX = 2147483647;
 
 /**
  * Load the INI file at $path and return the validated configuration.
- * Any missing, unknown or malformed setting is fatal.
+ * Any missing mandatory, unknown or malformed setting is fatal.
  *
  * @return array{base_url: string, mail_from: string,
  *     mail_from_name: string, allowed_domains: list<string>,
- *     db_path: string, secret_ttl: int, token_ttl: int}
+ *     db_path: string, secret_ttl: int, token_ttl: int, ip_limit: int,
+ *     sender_limit: int, recipient_limit: int, recipient_delay: int}
  */
 function config_load(string $path): array
 {
@@ -47,8 +55,14 @@ function config_load(string $path): array
         'mail_from_name' => config_name($ini['mail_from_name'] ?? 'Sherpass'),
         'allowed_domains' => config_domains($ini['allowed_domains'] ?? null),
         'db_path' => config_path($ini['db_path'] ?? null),
-        'secret_ttl' => config_ttl('secret_ttl', $ini['secret_ttl'] ?? null),
-        'token_ttl' => config_ttl('token_ttl', $ini['token_ttl'] ?? null),
+        'secret_ttl' => config_int($ini, 'secret_ttl', 2592000, 1),
+        'token_ttl' => config_int($ini, 'token_ttl', 1800, 1),
+        'ip_limit' => config_int($ini, 'ip_limit', 30, 1),
+        'sender_limit' => config_int($ini, 'sender_limit', 3, 1),
+        'recipient_limit' => config_int($ini, 'recipient_limit', 3, 1),
+        /* Limits are counted over an hour, longer delays would be lost. */
+        'recipient_delay' => config_int($ini, 'recipient_delay', 60, 0,
+            3600),
     ];
 }
 
@@ -125,11 +139,21 @@ function config_path(mixed $v): string
     return $v;
 }
 
-function config_ttl(string $name, mixed $v): int
+/**
+ * Return the integer setting $name, or $default if it is not set.
+ *
+ * @param array<string, mixed> $ini
+ */
+function config_int(array $ini, string $name, int $default, int $min,
+    int $max = CONFIG_INT_MAX): int
 {
-    if (!is_int($v) || $v <= 0) {
-        throw new RuntimeException("$name must be a positive number " .
-            'of seconds');
+    if (!array_key_exists($name, $ini)) {
+        return $default;
+    }
+    $v = $ini[$name];
+    if (!is_int($v) || $v < $min || $v > $max) {
+        throw new RuntimeException("$name must be an integer between " .
+            "$min and $max");
     }
     return $v;
 }

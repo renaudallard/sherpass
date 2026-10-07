@@ -19,8 +19,24 @@ allowed_domains[] = "allard.it"
 ; PHP user and lie outside the web root.
 db_path = "/var/lib/sherpass/sherpass.db"
 
+; The settings below are optional, the values shown are the defaults.
+
 ; Lifetime of an unclaimed password, in seconds (30 days).
 secret_ttl = 2592000
 
 ; Lifetime of the links sent by mail, in seconds (30 minutes).
 token_ttl = 1800
+
+; Rate limits, counted over the last hour. POST requests per client IP,
+; raise it if many users share one address.
+ip_limit = 30
+
+; Sender mails per address.
+sender_limit = 3
+
+; Recipient mails per password.
+recipient_limit = 3
+
+; Minimum delay between two recipient mails for the same password, in
+; seconds, at most 3600.
+recipient_delay = 60

@@ -57,14 +57,9 @@ one.
 * Expired rows are purged at the start of each request, no cron job is
   needed.
 
-Rate limits, set at the top of `public/index.php`:
-
-| Limit | Value |
-|---|---|
-| POST requests per client IP | 30 per hour |
-| Sender mails per address | 3 per hour |
-| Recipient mails per password | 3 per hour, 1 per minute |
-| Password size | 4096 bytes |
+Requests are rate limited, see `ip_limit`, `sender_limit`,
+`recipient_limit` and `recipient_delay` below. Passwords are limited to
+4096 bytes.
 
 Sherpass cannot protect against someone who has both the share link and
 access to the recipient mailbox, or against a compromised server, which
@@ -109,7 +104,8 @@ the `SHERPASS_CONFIG` FastCGI parameter. Without it, Sherpass reads
 
 `sherpass.ini` is a plain INI file. Unknown keys and invalid values are
 rejected, and the site then answers every request with an error and logs
-the reason.
+the reason. `base_url`, `mail_from`, `allowed_domains` and `db_path` are
+mandatory, the other settings have defaults.
 
 | Key | Meaning |
 |---|---|
@@ -118,8 +114,15 @@ the reason.
 | `mail_from_name` | Display name of the sender, printable ASCII without quotes or backslashes. Defaults to `Sherpass`. |
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
-| `secret_ttl` | Lifetime of an unclaimed password, in seconds. Default in the example: 2592000 (30 days). |
-| `token_ttl` | Lifetime of the links sent by mail, in seconds. Default in the example: 1800 (30 minutes). |
+| `secret_ttl` | Lifetime of an unclaimed password, in seconds. Default 2592000 (30 days). |
+| `token_ttl` | Lifetime of the links sent by mail, in seconds. Default 1800 (30 minutes). |
+| `ip_limit` | POST requests per client IP per hour. Default 30. Raise it if many users share one address, behind NAT for instance. |
+| `sender_limit` | Sender mails per address per hour. Default 3. |
+| `recipient_limit` | Recipient mails per password per hour. Default 3. |
+| `recipient_delay` | Minimum delay between two recipient mails for the same password, in seconds, 0 to 3600. Default 60. |
+
+Behind a reverse proxy, every request comes from the proxy address, so
+`ip_limit` applies to all users together.
 
 ## Logging
 
