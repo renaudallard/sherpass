@@ -112,14 +112,27 @@ function view_start_sent(string $email, string $ttl): string
         HTML;
 }
 
+/**
+ * Lifetimes a sender can pick: the usual ones shorter than secret_ttl,
+ * then secret_ttl itself, the default.
+ *
+ * @return list<int>
+ */
+function lifetimes(int $max): array
+{
+    $usual = array_filter([3600, 86400, 604800, 2592000],
+        fn(int $t): bool => $t < $max);
+    return [...$usual, $max];
+}
+
 /*
  * A textarea drops the first newline of its content, so one is always
  * emitted to keep a leading newline of the secret. The form is sent as
  * multipart: PHP writes an urlencoded body of 16k or more, which a long
  * password can make, to a temporary file, but not a multipart one.
  */
-function view_compose(string $v, string $sender, string $error = '',
-    string $secret = '', string $rcpt = ''): string
+function view_compose(string $v, string $sender, int $max_ttl, int $ttl,
+    string $error = '', string $secret = '', string $rcpt = ''): string
 {
     $err = view_error($error);
     $v = h($v);
@@ -128,6 +141,12 @@ function view_compose(string $v, string $sender, string $error = '',
     $rcpt = h($rcpt);
     $max = SECRET_MAX;
     $emax = EMAIL_MAX;
+    $ttls = '';
+    foreach (lifetimes($max_ttl) as $t) {
+        $sel = $t === $ttl ? ' selected' : '';
+        $ttls .= "<option value=\"$t\"$sel>" . h(duration($t)) .
+            "</option>\n";
+    }
     return <<<HTML
         $err<p>Sharing as <strong>$sender</strong>.</p>
         <form method="post" action="./" enctype="multipart/form-data">
@@ -139,6 +158,9 @@ function view_compose(string $v, string $sender, string $error = '',
         <label for="rcpt">Recipient email address</label>
         <input type="email" id="rcpt" name="rcpt" value="$rcpt"
          maxlength="$emax" autocomplete="off" required>
+        <label for="ttl">Delete it if not displayed within</label>
+        <select id="ttl" name="ttl">
+        $ttls</select>
         <button type="submit">Share</button>
         </form>
         HTML;

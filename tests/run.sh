@@ -410,6 +410,9 @@ expect 404 "unknown sender token rejected"
 get "$BASE/?v=$V"
 expect 200 "compose page"
 has 'alice@allard.it'
+has '<option value="3600">1 hour</option>'
+has '<option value="2592000" selected>30 days</option>'
+ok "lifetimes offered up to secret_ttl, the default"
 
 printf '\n  p<b>a&s"s'"'"'\n\tw\303\251rd \342\202\254 ' > "$T/secret"
 : > "$T/empty"
@@ -440,6 +443,12 @@ has 'bytes that are not text'
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
     --data-urlencode "rcpt=bob"
 expect 400 "invalid recipient rejected"
+for t in 7200 31536000 x ''; do
+    post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
+        --data-urlencode "rcpt=bob@example.org" --data-urlencode "ttl=$t"
+    expect 400 "lifetime '$t' rejected"
+    has 'The lifetime is not valid'
+done
 get "$BASE/?v=$V"
 expect 200 "sender token kept after input errors"
 
@@ -453,6 +462,9 @@ expect 404 "sender token works only once"
 
 ROW=$(sql 'SELECT sender, rcpt, box, reveal FROM secret')
 [ "$(sql 'SELECT COUNT(*) FROM secret')" = 1 ] || fail "secret row count"
+[ "$(sql "SELECT expires - strftime('%s', 'now') BETWEEN 2591990 AND 2592000
+    FROM secret")" = 1 ] || fail "form without a lifetime not given secret_ttl"
+ok "form without a lifetime given secret_ttl"
 case "$ROW" in
 *alice*|*bob*|*"$S"*) fail "sender, recipient or key stored in clear" ;;
 esac
@@ -629,6 +641,15 @@ get "$BASE/?s=$S"
 expect 404 "expired secret rejected"
 [ "$(sql 'SELECT COUNT(*) FROM secret')" = 0 ] || fail "expired secret kept"
 ok "expired secret purged"
+
+sender dave@allard.it
+post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
+    --data-urlencode "rcpt=erin@example.org" --data-urlencode "ttl=3600"
+expect 200 "password shared for an hour"
+[ "$(sql "SELECT expires - strftime('%s', 'now') BETWEEN 3590 AND 3600
+    FROM secret")" = 1 ] || fail "picked lifetime not applied"
+ok "picked lifetime applied"
+sql 'DELETE FROM secret' > /dev/null
 
 sender erin@allard.it
 sql 'UPDATE sender SET expires = 1' > /dev/null

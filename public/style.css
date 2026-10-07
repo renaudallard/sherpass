@@ -49,7 +49,7 @@ label {
     font-weight: 600;
 }
 
-input, textarea {
+input, select, textarea {
     box-sizing: border-box;
     width: 100%;
     padding: 0.5rem;

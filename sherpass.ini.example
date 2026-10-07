@@ -22,7 +22,9 @@ db_path = "/var/lib/sherpass/sherpass.db"
 
 ; The settings below are optional, the values shown are the defaults.
 
-; Lifetime of an unclaimed password, in seconds (30 days), a year at most.
+; Longest lifetime of an unclaimed password, in seconds (30 days), a year
+; at most. The share form offers it, selected, after the shorter of 1 hour,
+; 1 day, 7 days and 30 days.
 secret_ttl = 2592000
 
 ; Lifetime of the sender link and of the recipient code sent by mail, in

@@ -54,7 +54,7 @@ function main(array $cfg, PDO $db, int $now): void
     } elseif ($method === 'GET' || $method === 'HEAD') {
         $in = $_GET;
         if (isset($in['v'])) {
-            page_compose($db, $now);
+            page_compose($cfg, $db, $now);
         } elseif (isset($in['s'])) {
             page_claim($db, $now);
         } else {
@@ -160,7 +160,7 @@ function sender_email(PDO $db, string $token, int $now): ?string
     return is_string($email) ? $email : null;
 }
 
-function page_compose(PDO $db, int $now): void
+function page_compose(array $cfg, PDO $db, int $now): void
 {
     $token = token_decode($_GET['v']);
     $sender = $token === null ? null : sender_email($db, $token, $now);
@@ -168,7 +168,8 @@ function page_compose(PDO $db, int $now): void
         invalid();
         return;
     }
-    respond(200, 'Share a password', view_compose($_GET['v'], $sender));
+    respond(200, 'Share a password', view_compose($_GET['v'], $sender,
+        $cfg['secret_ttl'], $cfg['secret_ttl']));
 }
 
 function do_compose(array $cfg, PDO $db, int $now): void
@@ -186,11 +187,21 @@ function do_compose(array $cfg, PDO $db, int $now): void
     $rcpt_in = $_POST['rcpt'] ?? '';
     $secret = is_string($secret) ? $secret : '';
     $rcpt_in = is_string($rcpt_in) ? $rcpt_in : '';
+    $max_ttl = $cfg['secret_ttl'];
+    /* A form opened before the lifetime could be picked sends none. */
+    $ttl = $_POST['ttl'] ?? (string)$max_ttl;
+    $ttl = is_string($ttl) && ctype_digit($ttl) ? (int)$ttl : 0;
+    if (!in_array($ttl, lifetimes($max_ttl), true)) {
+        respond(400, $title, view_compose($v, $sender, $max_ttl, $max_ttl,
+            'The lifetime is not valid.', '', $rcpt_in));
+        return;
+    }
     /* The page could not show such bytes as they were entered. */
     if (strlen($secret) <= 4 * SECRET_MAX &&
         (preg_match('//u', $secret) !== 1 || str_contains($secret, "\0"))) {
-        respond(400, $title, view_compose($v, $sender, 'The password ' .
-            'contains bytes that are not text.', '', $rcpt_in));
+        respond(400, $title, view_compose($v, $sender, $max_ttl, $ttl,
+            'The password contains bytes that are not text.', '',
+            $rcpt_in));
         return;
     }
     /*
@@ -199,20 +210,22 @@ function do_compose(array $cfg, PDO $db, int $now): void
      */
     if ($secret === '' || strlen($secret) > 4 * SECRET_MAX ||
         preg_match_all('/\r\n|./su', $secret) > SECRET_MAX) {
-        respond(400, $title, view_compose($v, $sender, 'The password must ' .
-            'be 1 to ' . SECRET_MAX . ' characters long.', '', $rcpt_in));
+        respond(400, $title, view_compose($v, $sender, $max_ttl, $ttl,
+            'The password must be 1 to ' . SECRET_MAX . ' characters long.',
+            '', $rcpt_in));
         return;
     }
     $rcpt = email_normalize($rcpt_in);
     if ($rcpt === null) {
-        respond(400, $title, view_compose($v, $sender, 'The recipient ' .
-            'email address is not valid.', $secret, $rcpt_in));
+        respond(400, $title, view_compose($v, $sender, $max_ttl, $ttl,
+            'The recipient email address is not valid.', $secret,
+            $rcpt_in));
         return;
     }
 
     $key = token_new();
     [$id, $enc, $tag] = secret_keys($key);
-    $expires = $now + $cfg['secret_ttl'];
+    $expires = $now + $ttl;
     $ok = db_tx($db, function () use ($db, $now, $token, $id, $enc, $tag,
         $sender, $rcpt, $secret, $expires): bool {
         $st = db_query($db, 'DELETE FROM sender ' .
