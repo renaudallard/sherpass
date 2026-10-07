@@ -533,6 +533,34 @@ docs/logo.svg                 logo
 .github/workflows/tests.yml   tests on every push
 ```
 
+## Comparison
+
+With [Yopass](https://github.com/jhaals/yopass) 14.10.0,
+[PrivateBin](https://github.com/PrivateBin/PrivateBin) 2.0.6 and
+[Password Pusher](https://github.com/pglombardo/PasswordPusher) 2.14.2,
+as of October 2026:
+
+| | Sherpass | Yopass | PrivateBin | Password Pusher |
+| --- | --- | --- | --- | --- |
+| Encryption | Server, key only in the share link | Browser, OpenPGP | Browser, AES-256-GCM | Server, one key for all pushes |
+| Server sees the password | When shared and displayed | No, unless it serves altered JavaScript | No, unless it serves altered JavaScript | Yes, stored pushes included |
+| JavaScript | None | Required | Required | Used |
+| Who can share | Verified addresses of `allowed_domains` | Anyone, or OIDC with a paid license | Anyone, or an IP allowlist | Anyone, or accounts |
+| Who can open | Share link and a code mailed to the recipient | Link, optional password | Link, optional password | Link, optional passphrase |
+| Views | One | One, or any until expiry | One, or any until expiry | 1 to 100 |
+| Lifetime | Up to a year, 30 days by default | 1 hour to 1 week | 5 minutes to never | 1 to 90 days |
+| Files | No | Yes | Optional | For logged in users |
+| API, CLI | No | Yes | Yes, third party CLIs | Yes |
+| Mail | Required | No | No | Optional |
+| Stack | PHP, SQLite | Go, React, Memcached or Redis | PHP, JavaScript | Ruby on Rails |
+
+Only sherpass ties a password to one recipient, so that the link alone
+does not display it. Senders need an address in a chosen domain but no
+account, and there is no JavaScript and far less code. In exchange, the
+server sees the password when it is shared and displayed, which Yopass
+and PrivateBin avoid by encrypting in the browser, both sides need mail,
+and it shares one text password once, without files, API or CLI.
+
 ## Limitations
 
 - Someone who has both the share link and access to the recipient
