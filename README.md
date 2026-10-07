@@ -165,20 +165,21 @@ rcctl start php84_fpm nginx
 apt install nginx php8.4-fpm php8.4-sqlite3
 git clone https://github.com/renaudallard/sherpass.git /var/www/sherpass
 install -d -o www-data -g www-data -m 0700 /var/lib/sherpass
-install -d -o www-data -g adm -m 0750 /var/log/sherpass
 install -d -m 0755 /etc/sherpass
 install -g www-data -m 0640 /var/www/sherpass/sherpass.ini.example \
     /etc/sherpass/sherpass.ini
 ```
 
 Edit `/etc/sherpass/sherpass.ini`. It may hold the SMTP password, keep
-it readable by root and www-data only. Give PHP its own log in the
+it readable by root and www-data only. Have PHP log to syslog in the
 php-fpm pool, for instance in `/etc/php/8.4/fpm/pool.d/www.conf`:
 
 ```ini
-php_admin_value[error_log] = /var/log/sherpass/php.log
+php_admin_value[error_log] = syslog
 php_admin_flag[log_errors] = on
 ```
+
+The lines go to the journal, tagged `php`: `journalctl -t php`.
 
 Then set up nginx:
 
@@ -300,7 +301,7 @@ in the `location = /sherpass/` block.
 ## Running in a chroot
 
 sherpass only needs its own tree and the database directory, which is
-how it runs on OpenBSD, where PHP logs to syslog. In any chroot:
+how it runs on OpenBSD. In any chroot:
 
 - **Paths** - those in `sherpass.ini` and in `SHERPASS_CONFIG` are the
   ones php-fpm sees inside the chroot
@@ -311,11 +312,14 @@ how it runs on OpenBSD, where PHP logs to syslog. In any chroot:
 - **TLS** - checking a certificate needs the CA certificates in the
   chroot: point `smtp_cafile` to a copy inside it. On OpenBSD, copying
   `/etc/ssl/cert.pem` to `/var/www/etc/ssl/cert.pem` works as well
-- **Time zones** - Debian patches PHP to read them from
-  `/usr/share/zoneinfo`, and every line PHP logs starts with the time.
-  Without `usr/share/zoneinfo/UTC` in the chroot, a php-fpm worker
-  crashes as soon as PHP logs something. OpenBSD's PHP uses its built-in
-  time zone data and needs nothing
+- **Logging** - with `error_log = syslog`, as in the installation steps,
+  PHP needs no file in the chroot. OpenBSD reaches syslogd from any
+  chroot, Linux needs `/dev/log` inside it, or the lines are lost
+- **Time zones** - only for a log file: Debian patches PHP to read time
+  zones from `/usr/share/zoneinfo` and stamps each line of a log file
+  with the time, so without `usr/share/zoneinfo/UTC` in the chroot a
+  php-fpm worker crashes as soon as PHP logs something. Syslog lines
+  carry no time from PHP, and OpenBSD's PHP uses its own time zone data
 
 ## Configuration
 
