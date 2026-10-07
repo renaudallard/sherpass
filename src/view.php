@@ -199,7 +199,8 @@ function view_secret(string $secret, string $sender): string
         <p>Password shared by <strong>$sender</strong>:</p>
         <pre class="box">
         $secret</pre>
-        <p>It has now been deleted from the server and cannot be displayed
-        again. Copy it before leaving this page.</p>
+        <p>It is deleted from the server as soon as this page has been
+        sent and cannot be displayed again. Copy it before leaving this
+        page.</p>
         HTML;
 }
