@@ -201,8 +201,12 @@ smtp_port = 2587
 smtp_user = 'sherpass'
 smtp_password = 'p\"a\$s\${HOME};x'
 smtp_cafile = $T/smtp.crt" "SMTP with STARTTLS and credentials accepted"
-cfgtest pass "$SMTP
-smtp_tls = off" "SMTP without TLS accepted"
+cfgtest pass "$GOOD
+mail_transport = smtp
+smtp_host = localhost
+smtp_tls = off" "SMTP without TLS to localhost accepted"
+cfgtest fail "$SMTP
+smtp_tls = off" "SMTP without TLS to a remote host rejected"
 cfgtest fail "$GOOD
 mail_transport = pigeon" "unknown transport rejected"
 cfgtest fail "$GOOD
@@ -211,7 +215,9 @@ cfgtest fail "$SMTP
 smtp_tls = maybe" "invalid smtp_tls rejected"
 cfgtest fail "$SMTP
 smtp_port = 70000" "invalid smtp_port rejected"
-cfgtest fail "$SMTP
+cfgtest fail "$GOOD
+mail_transport = smtp
+smtp_host = localhost
 smtp_tls = off
 smtp_user = sherpass
 smtp_password = secret" "credentials without TLS rejected"

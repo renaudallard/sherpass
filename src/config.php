@@ -81,8 +81,8 @@ function config_load(string $path): array
 
 /**
  * Mail transport settings. smtp_tls is tls, starttls or none, the latter
- * written off in the file. Certificate verification can only be turned
- * off for a server on the loopback interface.
+ * written off in the file. TLS and certificate verification can only be
+ * turned off for a server on the loopback interface.
  *
  * @param array<string, mixed> $ini
  * @return array{mail_transport: string, smtp_host: string, smtp_port: int,
@@ -122,6 +122,10 @@ function config_mail(array $ini): array
     }
     if (!in_array($tls, ['tls', 'starttls', 'none'], true)) {
         throw new RuntimeException('smtp_tls must be tls, starttls or off');
+    }
+    if ($tls === 'none' && !config_loopback($host)) {
+        throw new RuntimeException('smtp_tls can only be off for ' .
+            'localhost, 127.0.0.0/8 or ::1');
     }
     $port = config_int($ini, 'smtp_port',
         ['tls' => 465, 'starttls' => 587, 'none' => 25][$tls], 1, 65535);

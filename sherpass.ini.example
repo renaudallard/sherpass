@@ -50,7 +50,8 @@ recipient_delay = 60
 ;smtp_host = "smtp.example.org"
 
 ; tls for TLS from the start, starttls to upgrade a plain connection,
-; off for a relay without TLS. The port defaults to 465, 587 or 25.
+; off for a relay without TLS on localhost, 127.0.0.0/8 or ::1. The port
+; defaults to 465, 587 or 25.
 ;smtp_tls = tls
 ;smtp_port = 465
 

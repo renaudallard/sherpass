@@ -66,8 +66,9 @@ one.
   SMTP, TLS 1.2 or later is used, from the start or through STARTTLS,
   which is then mandatory: a server that does not offer it is not
   used. Certificates are verified against the system CAs or
-  `smtp_cafile`, and the check can only be turned off for a server on
-  the loopback interface. Credentials are never sent without TLS. The
+  `smtp_cafile`. TLS, or only the certificate check, can be turned off
+  for a server on the loopback interface, nowhere else. Credentials are
+  never sent without TLS. The
   whole SMTP dialogue must end within 30 seconds, however slowly the
   server answers.
 * Expired rows are purged at the start of each request, no cron job is
@@ -142,7 +143,7 @@ mandatory, the other settings have defaults.
 | `recipient_delay` | Minimum delay between two recipient mails for the same password, in seconds, 0 to 3600. Default 60. |
 | `mail_transport` | `sendmail` to hand mails to the local MTA through PHP `mail()`, `smtp` to talk to an SMTP server directly. Default `sendmail`. |
 | `smtp_host` | SMTP server name or IP address, mandatory with `smtp`. |
-| `smtp_tls` | `tls` for TLS from the start, `starttls` to upgrade a plain connection, `off` for a relay without TLS. Default `tls`. |
+| `smtp_tls` | `tls` for TLS from the start, `starttls` to upgrade a plain connection, `off` for a relay without TLS, only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `tls`. |
 | `smtp_port` | SMTP port. Default 465 with `tls`, 587 with `starttls`, 25 with `off`. |
 | `smtp_user`, `smtp_password` | Credentials, set both or none. AUTH PLAIN is used, or AUTH LOGIN if the server only offers that. They require TLS. |
 | `smtp_cafile` | Absolute path of the CA certificates to verify the server with, for a private CA. The system CAs are used otherwise. |

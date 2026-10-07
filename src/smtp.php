@@ -3,9 +3,9 @@
 /*
  * Minimal SMTP client, one message per connection. The connection is
  * either TLS from the start or upgraded with STARTTLS, which is then
- * mandatory, or plain for a local relay. Certificates are verified unless
- * this is turned off for a loopback server, and credentials never go over
- * a connection without TLS.
+ * mandatory, or plain for a relay on the loopback interface. Certificates
+ * are verified unless this is turned off for a loopback server, and
+ * credentials never go over a connection without TLS.
  */
 
 declare(strict_types=1);
