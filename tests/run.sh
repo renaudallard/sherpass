@@ -65,6 +65,12 @@ nmail() {
     ls "$MAILDIR" 2>/dev/null | wc -l
 }
 
+# Nothing may be in the PHP log, except where a failure is expected.
+noerrors() {
+    [ -s "$T/php.log" ] && fail "PHP logged errors $1: $(cat "$T/php.log")"
+    ok "no PHP errors logged $1"
+}
+
 lastmail() {
     echo "$MAILDIR/$(nmail)"
 }
@@ -543,11 +549,13 @@ $1"
 
 # Expect delivery with settings $1 to fail, logging $2.
 smtpfail() {
+    noerrors "before: $3"
     smtpconfig "$1"
-    : > "$T/php.log"
     post "$BASE/" --data-urlencode "email=paul@allard.it"
     expect 500 "$3"
     grep -qF -- "$2" "$T/php.log" || fail "$3: log lacks: $2"
+    grep -v '\] sherpass: ' "$T/php.log" &&
+        fail "$3: PHP logged more than the failure"
     : > "$T/php.log"
 }
 
@@ -645,7 +653,6 @@ MAILDIR=$T/smtp-plain
 cmp -s "$(lastmail)" "$T/dots" || fail "dotted lines altered"
 ok "dot stuffing"
 
-[ -s "$T/php.log" ] && fail "PHP logged errors: $(cat "$T/php.log")"
-ok "no PHP errors logged"
+noerrors "at the end"
 
 echo "all tests passed"
