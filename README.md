@@ -54,6 +54,12 @@ one.
   `Referrer-Policy: no-referrer` and `Cache-Control: no-store`. The
   password field disables browser spellcheck, which may send its content
   to a remote service.
+* Mail goes through the local MTA or directly to an SMTP server. Over
+  SMTP, TLS 1.2 or later is used, from the start or through STARTTLS,
+  which is then mandatory: a server that does not offer it is not
+  used. Certificates are verified against the system CAs or
+  `smtp_cafile`, and the check can only be turned off for a server on
+  the loopback interface. Credentials are never sent without TLS.
 * Expired rows are purged at the start of each request, no cron job is
   needed.
 
@@ -71,10 +77,11 @@ sees passwords as they are submitted and displayed.
   php-fpm. Developed and tested with PHP 8.4.
 * nginx, or another web server, see below.
 * A local MTA providing `sendmail`, for instance Exim, Postfix or
-  OpenSMTPD. The default `sendmail_path` (`/usr/sbin/sendmail -t -i` on
-  Debian) is fine. The MTA must be allowed to send mail as `mail_from`, with SPF
-  and DKIM set up for its domain or the mails will likely be flagged as
-  spam.
+  OpenSMTPD, or an SMTP server, see `mail_transport` below. With
+  `sendmail`, the default `sendmail_path` (`/usr/sbin/sendmail -t -i` on
+  Debian) is fine. Either way, the server must be allowed to send mail
+  as `mail_from`, with SPF and DKIM set up for its domain or the mails
+  will likely be flagged as spam.
 
 ## Installation on Debian
 
@@ -86,7 +93,8 @@ sees passwords as they are submitted and displayed.
     install -g www-data -m 0640 /var/www/sherpass/sherpass.ini.example \
         /etc/sherpass/sherpass.ini
 
-Edit `/etc/sherpass/sherpass.ini`, then set up nginx:
+Edit `/etc/sherpass/sherpass.ini`. It may hold the SMTP password, keep
+it readable by root and www-data only. Then set up nginx:
 
     cp /var/www/sherpass/nginx/sherpass.conf.example \
         /etc/nginx/sites-available/sherpass
@@ -120,9 +128,20 @@ mandatory, the other settings have defaults.
 | `sender_limit` | Sender mails per address per hour. Default 3. |
 | `recipient_limit` | Recipient mails per password per hour. Default 3. |
 | `recipient_delay` | Minimum delay between two recipient mails for the same password, in seconds, 0 to 3600. Default 60. |
+| `mail_transport` | `sendmail` to hand mails to the local MTA through PHP `mail()`, `smtp` to talk to an SMTP server directly. Default `sendmail`. |
+| `smtp_host` | SMTP server name or IP address, mandatory with `smtp`. |
+| `smtp_tls` | `tls` for TLS from the start, `starttls` to upgrade a plain connection, `off` for a relay without TLS. Default `tls`. |
+| `smtp_port` | SMTP port. Default 465 with `tls`, 587 with `starttls`, 25 with `off`. |
+| `smtp_user`, `smtp_password` | Credentials, set both or none. AUTH PLAIN is used, or AUTH LOGIN if the server only offers that. They require TLS. |
+| `smtp_cafile` | Absolute path of the CA certificates to verify the server with, for a private CA. The system CAs are used otherwise. |
+| `smtp_tls_verify` | `off` skips the certificate check. Only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `on`. |
 
 Behind a reverse proxy, every request comes from the proxy address, so
 `ip_limit` applies to all users together.
+
+Put `smtp_user` and `smtp_password` between single quotes. Inside double
+quotes, `${...}` is expanded, and unquoted values such as `yes`, `none`
+or numbers are turned into booleans or integers and rejected.
 
 ## Logging
 
@@ -143,11 +162,13 @@ but until then they should not end up in logs:
 
     tests/run.sh
 
-The script needs php-cli, php-sqlite3 and curl. It checks the
+The script needs php-cli, php-sqlite3, curl and openssl. It checks the
 configuration validation, then runs the whole flow against the PHP
 built-in server on 127.0.0.1:8089 (set `PORT` to change it). Mails are
-stored as files instead of being sent. Everything is written to
-`tmp/test`.
+stored as files instead of being sent. SMTP delivery is then tested
+against `tests/smtpd.php` listening on the three following ports, with
+TLS, STARTTLS and without TLS, using a certificate made for the run.
+Everything is written to `tmp/test`.
 
 ## Files
 
@@ -157,11 +178,13 @@ stored as files instead of being sent. Everything is written to
     src/crypto.php                tokens, key derivation and encryption
     src/db.php                    SQLite storage, expiry and rate limits
     src/mail.php                  addresses and mail
+    src/smtp.php                  SMTP client
     src/view.php                  HTML pages
     sherpass.ini.example          example configuration
     nginx/sherpass.conf.example   example nginx virtual host
     tests/run.sh                  tests
     tests/sendmail.sh             sendmail stand-in used by the tests
+    tests/smtpd.php               SMTP server used by the tests
 
 ## License
 

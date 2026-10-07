@@ -1,7 +1,7 @@
 <?php
 
 /*
- * Addresses and mail delivery through the local MTA.
+ * Addresses and mail delivery, through the local MTA or SMTP.
  */
 
 declare(strict_types=1);
@@ -30,29 +30,49 @@ function email_domain(string $e): string
 }
 
 /**
- * Send a plain text mail, false if the MTA refused it. PHP writes the
- * headers with CRLF, so the body gets the same line endings.
+ * Send a plain text mail, false if it could not be handed over. Every
+ * part of the bodies is ASCII, hence 7bit. Lines end with CRLF, as the
+ * headers PHP writes for mail().
  *
- * @param array{mail_from: string, mail_from_name: string} $cfg
+ * @param array<string, mixed> $cfg
  */
 function mail_send(array $cfg, string $to, string $subject,
     string $body): bool
 {
+    $from = $cfg['mail_from'];
     $headers = [
-        'From' => sprintf('"%s" <%s>', $cfg['mail_from_name'],
-            $cfg['mail_from']),
+        'From' => sprintf('"%s" <%s>', $cfg['mail_from_name'], $from),
+        'To' => $to,
+        'Subject' => $subject,
+        'Date' => gmdate('D, d M Y H:i:s +0000'),
+        'Message-ID' => sprintf('<%s@%s>', bin2hex(random_bytes(16)),
+            email_domain($from)),
         'MIME-Version' => '1.0',
-        'Content-Type' => 'text/plain; charset=UTF-8',
-        'Content-Transfer-Encoding' => '8bit',
+        'Content-Type' => 'text/plain; charset=US-ASCII',
+        'Content-Transfer-Encoding' => '7bit',
         'Auto-Submitted' => 'auto-generated',
     ];
-    return mail($to, $subject, str_replace("\n", "\r\n", $body), $headers,
-        '-f' . $cfg['mail_from']);
+    $body = str_replace("\n", "\r\n", $body);
+
+    if ($cfg['mail_transport'] === 'smtp') {
+        $msg = '';
+        foreach ($headers as $k => $v) {
+            $msg .= "$k: $v\r\n";
+        }
+        try {
+            smtp_send($cfg, $from, $to, "$msg\r\n$body");
+        } catch (RuntimeException $e) {
+            error_log('sherpass: ' . $e->getMessage());
+            return false;
+        }
+        return true;
+    }
+    unset($headers['To'], $headers['Subject']);
+    return mail($to, $subject, $body, $headers, '-f' . $from);
 }
 
 /**
- * @param array{base_url: string, mail_from: string, mail_from_name: string,
- *     token_ttl: int} $cfg
+ * @param array<string, mixed> $cfg
  */
 function mail_sender(array $cfg, string $to, string $link): bool
 {
@@ -74,7 +94,7 @@ function mail_sender(array $cfg, string $to, string $link): bool
 }
 
 /**
- * @param array{mail_from: string, mail_from_name: string, token_ttl: int} $cfg
+ * @param array<string, mixed> $cfg
  */
 function mail_recipient(array $cfg, string $to, string $sender,
     string $link): bool

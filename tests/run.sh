@@ -89,8 +89,23 @@ claim() {
     R=${R#*r=}
 }
 
+# Write the configuration of the test server, extra settings in $1.
+webconfig() {
+    cat > "$T/sherpass.ini" <<EOF
+base_url = "$BASE"
+mail_from = "sherpass@allard.it"
+allowed_domains[] = "allard.it"
+db_path = "$T/sherpass.db"
+$1
+EOF
+}
+
 rm -rf "$T"
 mkdir -p "$T"
+openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+    -days 1 -subj /CN=localhost -addext subjectAltName=DNS:localhost \
+    -keyout "$T/smtp.key" -out "$T/smtp.crt" 2>/dev/null ||
+    fail "cannot create the test certificate"
 
 # Configuration validation.
 
@@ -153,23 +168,61 @@ mail_from_name = \"$(printf 'Sherp\303\240ss')\"" \
 cfgtest fail "$(echo "$GOOD" | sed 's/^mail_from.*/mail_from = "nobody"/')" \
     "invalid mail_from rejected"
 
+SMTP="$GOOD
+mail_transport = smtp
+smtp_host = smtp.example.org"
+
+cfgtest pass "$SMTP" "SMTP with defaults accepted"
+cfgtest pass "$SMTP
+smtp_tls = starttls
+smtp_port = 2587
+smtp_user = 'sherpass'
+smtp_password = 'p\"a\$s\${HOME};x'
+smtp_cafile = $T/smtp.crt" "SMTP with STARTTLS and credentials accepted"
+cfgtest pass "$SMTP
+smtp_tls = off" "SMTP without TLS accepted"
+cfgtest fail "$GOOD
+mail_transport = pigeon" "unknown transport rejected"
+cfgtest fail "$GOOD
+mail_transport = smtp" "SMTP without host rejected"
+cfgtest fail "$SMTP
+smtp_tls = maybe" "invalid smtp_tls rejected"
+cfgtest fail "$SMTP
+smtp_port = 70000" "invalid smtp_port rejected"
+cfgtest fail "$SMTP
+smtp_tls = off
+smtp_user = sherpass
+smtp_password = secret" "credentials without TLS rejected"
+cfgtest fail "$SMTP
+smtp_user = sherpass" "user without password rejected"
+cfgtest fail "$SMTP
+smtp_user = sherpass
+smtp_password = 1234" "unquoted numeric password rejected"
+cfgtest fail "$SMTP
+smtp_cafile = smtp.crt" "relative smtp_cafile rejected"
+cfgtest fail "$SMTP
+smtp_cafile = $T/missing.crt" "missing smtp_cafile rejected"
+cfgtest fail "$SMTP
+smtp_tls_verify = off" "unverified TLS to a remote host rejected"
+cfgtest fail "$SMTP
+smtp_tls_verify = maybe" "invalid smtp_tls_verify rejected"
+for h in localhost 127.0.0.1 127.1.2.3 ::1; do
+    cfgtest pass "$GOOD
+mail_transport = smtp
+smtp_host = $h
+smtp_tls_verify = off" "unverified TLS to $h accepted"
+done
+
 # End-to-end flow.
 
-cat > "$T/sherpass.ini" <<EOF
-base_url = "$BASE"
-mail_from = "sherpass@allard.it"
-allowed_domains[] = "allard.it"
-db_path = "$T/sherpass.db"
-secret_ttl = 2592000
-token_ttl = 1800
-EOF
+webconfig ""
 
 SHERPASS_CONFIG=$T/sherpass.ini PHP_CLI_SERVER_WORKERS=4 \
     php -d sendmail_path="$ROOT/tests/sendmail.sh $MAILDIR" \
     -d log_errors=1 -d error_log="$T/php.log" \
     -S "127.0.0.1:$PORT" -t "$ROOT/public" > "$T/server.log" 2>&1 &
-PID=$!
-trap 'kill $PID 2>/dev/null' EXIT INT TERM
+BG=$!
+trap 'kill $BG 2>/dev/null' EXIT INT TERM
 
 i=0
 until curl -s -o /dev/null "$BASE/"; do
@@ -374,6 +427,141 @@ ok "configured recipient limit applied"
 echo "ip_limit = 1" >> "$T/sherpass.ini"
 post "$BASE/" --data-urlencode "email=judy@allard.it"
 expect 429 "configured IP limit applied"
+
+# SMTP delivery, against tests/smtpd.php.
+
+SMTP_TLS=$((PORT + 1))
+SMTP_STARTTLS=$((PORT + 2))
+SMTP_PLAIN=$((PORT + 3))
+
+# Start a test SMTP server: mode port name [user pass [mechs]].
+smtpd() {
+    m=$1
+    p=$2
+    n=$3
+    shift 3
+    php "$ROOT/tests/smtpd.php" "$m" "$p" "$T/smtp.crt" "$T/smtp.key" \
+        "$T/smtp-$n" "$T/smtp-$n.log" "$@" > "$T/smtp-$n.out" 2>&1 &
+    BG="$BG $!"
+    i=0
+    until grep -q ready "$T/smtp-$n.out" 2>/dev/null; do
+        i=$((i + 1))
+        [ $i -lt 50 ] || fail "SMTP server $n did not start"
+        sleep 0.1
+    done
+}
+
+# Switch the test server to SMTP delivery, extra settings in $1.
+smtpconfig() {
+    webconfig "ip_limit = 1000
+sender_limit = 1000
+mail_transport = smtp
+$1"
+}
+
+# Expect delivery with settings $1 to fail, logging $2.
+smtpfail() {
+    smtpconfig "$1"
+    : > "$T/php.log"
+    post "$BASE/" --data-urlencode "email=paul@allard.it"
+    expect 500 "$3"
+    grep -qF -- "$2" "$T/php.log" || fail "$3: log lacks: $2"
+    : > "$T/php.log"
+}
+
+smtpd tls $SMTP_TLS tls sherpass 'p@ss w0rd'
+smtpd starttls $SMTP_STARTTLS starttls sherpass 'p@ss w0rd' LOGIN
+smtpd none $SMTP_PLAIN plain
+
+CREDS="smtp_user = 'sherpass'
+smtp_password = 'p@ss w0rd'"
+
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_TLS
+$CREDS
+smtp_cafile = $T/smtp.crt"
+MAILDIR=$T/smtp-tls
+sender kate@allard.it
+ok "sender mail over TLS"
+M=$(lastmail)
+grep -q '^To: kate@allard.it' "$M" || fail "SMTP mail To"
+grep -q '^Subject: Confirm your address' "$M" || fail "SMTP mail Subject"
+grep -q '^Date: ' "$M" || fail "SMTP mail Date"
+grep -q '^Message-ID: <[0-9a-f]*@allard.it>' "$M" || fail "SMTP Message-ID"
+grep -qx 'AUTH PLAIN' "$T/smtp-tls.log" || fail "no AUTH PLAIN"
+grep -qx 'MAIL FROM:<sherpass@allard.it>' "$T/smtp-tls.log" ||
+    fail "SMTP envelope sender"
+grep -qx 'RCPT TO:<kate@allard.it>' "$T/smtp-tls.log" ||
+    fail "SMTP envelope recipient"
+ok "SMTP headers, envelope and authentication"
+share "$V" "$T/secret" leo@example.org
+claim "$S" leo@example.org
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 200 "password revealed with mails over TLS"
+
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_STARTTLS
+smtp_tls = starttls
+$CREDS
+smtp_cafile = $T/smtp.crt"
+MAILDIR=$T/smtp-starttls
+sender mike@allard.it
+tr '\n' ' ' < "$T/smtp-starttls.log" |
+    grep -q 'STARTTLS TLS EHLO \[127.0.0.1\] AUTH LOGIN MAIL' ||
+    fail "STARTTLS not done before AUTH LOGIN"
+ok "sender mail over STARTTLS with AUTH LOGIN"
+
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_PLAIN
+smtp_tls = off"
+MAILDIR=$T/smtp-plain
+sender nina@allard.it
+grep -q '^AUTH' "$T/smtp-plain.log" && fail "AUTH without TLS"
+ok "sender mail over plain SMTP"
+
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_TLS
+$CREDS
+smtp_tls_verify = off"
+MAILDIR=$T/smtp-tls
+sender oscar@allard.it
+ok "sender mail over unverified TLS to localhost"
+
+smtpfail "smtp_host = localhost
+smtp_port = $SMTP_TLS
+$CREDS" "certificate verify failed" "unknown certificate rejected"
+smtpfail "smtp_host = 127.0.0.1
+smtp_port = $SMTP_TLS
+$CREDS
+smtp_cafile = $T/smtp.crt" "did not match expected name" \
+    "certificate name mismatch rejected"
+smtpfail "smtp_host = localhost
+smtp_port = $SMTP_STARTTLS
+smtp_tls = starttls
+$CREDS" "certificate verify failed" "unknown STARTTLS certificate rejected"
+smtpfail "smtp_host = localhost
+smtp_port = $SMTP_TLS
+smtp_user = 'sherpass'
+smtp_password = 'wrong'
+smtp_cafile = $T/smtp.crt" "AUTH failed: 535" "wrong password rejected"
+smtpfail "smtp_host = localhost
+smtp_port = $SMTP_PLAIN
+smtp_tls = starttls
+smtp_cafile = $T/smtp.crt" "does not offer STARTTLS" \
+    "missing STARTTLS rejected"
+
+# A lone dot and lines starting with one must survive DATA.
+printf '.first\r\n.\r\nline\r\n..two\r\n' > "$T/dots"
+php -r 'require $argv[1] . "/src/smtp.php";
+    smtp_send(["base_url" => "https://pass.allard.it",
+        "smtp_host" => "localhost", "smtp_port" => (int)$argv[2],
+        "smtp_tls" => "none", "smtp_user" => "", "smtp_password" => "",
+        "smtp_cafile" => "", "smtp_tls_verify" => true],
+        "a@allard.it", "b@example.org", file_get_contents($argv[3]));' \
+    "$ROOT" "$SMTP_PLAIN" "$T/dots" || fail "SMTP send of dotted lines"
+MAILDIR=$T/smtp-plain
+cmp -s "$(lastmail)" "$T/dots" || fail "dotted lines altered"
+ok "dot stuffing"
 
 [ -s "$T/php.log" ] && fail "PHP logged errors: $(cat "$T/php.log")"
 ok "no PHP errors logged"

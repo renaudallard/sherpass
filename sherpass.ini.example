@@ -40,3 +40,28 @@ recipient_limit = 3
 ; Minimum delay between two recipient mails for the same password, in
 ; seconds, at most 3600.
 recipient_delay = 60
+
+; Mail delivery: sendmail hands mails to the local MTA through PHP
+; mail(), smtp talks to an SMTP server directly.
+;mail_transport = sendmail
+
+; SMTP server, mandatory with mail_transport = smtp.
+;smtp_host = "smtp.example.org"
+
+; tls for TLS from the start, starttls to upgrade a plain connection,
+; off for a relay without TLS. The port defaults to 465, 587 or 25.
+;smtp_tls = tls
+;smtp_port = 465
+
+; Credentials, only ever sent over TLS. Keep them between single quotes,
+; inside double quotes ${...} is expanded.
+;smtp_user = 'sherpass@allard.it'
+;smtp_password = 'secret'
+
+; CA certificates to verify the server with, for a private CA. The
+; system CAs are used otherwise.
+;smtp_cafile = "/etc/sherpass/ca.pem"
+
+; Certificate verification can only be turned off for a server on
+; localhost, 127.0.0.0/8 or ::1.
+;smtp_tls_verify = on

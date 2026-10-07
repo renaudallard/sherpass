@@ -21,6 +21,7 @@ require __DIR__ . '/../src/config.php';
 require __DIR__ . '/../src/crypto.php';
 require __DIR__ . '/../src/db.php';
 require __DIR__ . '/../src/mail.php';
+require __DIR__ . '/../src/smtp.php';
 require __DIR__ . '/../src/view.php';
 
 function main(array $cfg, PDO $db, int $now): void

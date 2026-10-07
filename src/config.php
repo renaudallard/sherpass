@@ -18,6 +18,14 @@ const CONFIG_KEYS = [
     'sender_limit',
     'recipient_limit',
     'recipient_delay',
+    'mail_transport',
+    'smtp_host',
+    'smtp_port',
+    'smtp_tls',
+    'smtp_user',
+    'smtp_password',
+    'smtp_cafile',
+    'smtp_tls_verify',
 ];
 
 /* Upper bound of numeric settings, far from any overflow. */
@@ -30,7 +38,10 @@ const CONFIG_INT_MAX = 2147483647;
  * @return array{base_url: string, mail_from: string,
  *     mail_from_name: string, allowed_domains: list<string>,
  *     db_path: string, secret_ttl: int, token_ttl: int, ip_limit: int,
- *     sender_limit: int, recipient_limit: int, recipient_delay: int}
+ *     sender_limit: int, recipient_limit: int, recipient_delay: int,
+ *     mail_transport: string, smtp_host: string, smtp_port: int,
+ *     smtp_tls: string, smtp_user: string, smtp_password: string,
+ *     smtp_cafile: string, smtp_tls_verify: bool}
  */
 function config_load(string $path): array
 {
@@ -63,7 +74,111 @@ function config_load(string $path): array
         /* Limits are counted over an hour, longer delays would be lost. */
         'recipient_delay' => config_int($ini, 'recipient_delay', 60, 0,
             3600),
+    ] + config_mail($ini);
+}
+
+/**
+ * Mail transport settings. smtp_tls is tls, starttls or none, the latter
+ * written off in the file. Certificate verification can only be turned
+ * off for a server on the loopback interface.
+ *
+ * @param array<string, mixed> $ini
+ * @return array{mail_transport: string, smtp_host: string, smtp_port: int,
+ *     smtp_tls: string, smtp_user: string, smtp_password: string,
+ *     smtp_cafile: string, smtp_tls_verify: bool}
+ */
+function config_mail(array $ini): array
+{
+    $transport = $ini['mail_transport'] ?? 'sendmail';
+    if ($transport === 'sendmail') {
+        return [
+            'mail_transport' => 'sendmail',
+            'smtp_host' => '',
+            'smtp_port' => 0,
+            'smtp_tls' => 'none',
+            'smtp_user' => '',
+            'smtp_password' => '',
+            'smtp_cafile' => '',
+            'smtp_tls_verify' => true,
+        ];
+    }
+    if ($transport !== 'smtp') {
+        throw new RuntimeException('mail_transport must be sendmail or smtp');
+    }
+
+    $host = $ini['smtp_host'] ?? null;
+    if (!is_string($host) || (filter_var($host, FILTER_VALIDATE_DOMAIN,
+        FILTER_FLAG_HOSTNAME) === false &&
+        filter_var($host, FILTER_VALIDATE_IP) === false)) {
+        throw new RuntimeException('smtp_host must be a host name or an ' .
+            'IP address');
+    }
+
+    $tls = $ini['smtp_tls'] ?? 'tls';
+    if ($tls === false || $tls === 'off') {
+        $tls = 'none';
+    }
+    if (!in_array($tls, ['tls', 'starttls', 'none'], true)) {
+        throw new RuntimeException('smtp_tls must be tls, starttls or off');
+    }
+    $port = config_int($ini, 'smtp_port',
+        ['tls' => 465, 'starttls' => 587, 'none' => 25][$tls], 1, 65535);
+
+    $user = $ini['smtp_user'] ?? '';
+    $pass = $ini['smtp_password'] ?? '';
+    if (!is_string($user) || preg_match('/[\x00-\x1f\x7f]/', $user) === 1) {
+        throw new RuntimeException('smtp_user must be a quoted string ' .
+            'without control characters');
+    }
+    if (!is_string($pass) || str_contains($pass, "\0")) {
+        throw new RuntimeException('smtp_password must be a string, put ' .
+            'it between single quotes');
+    }
+    if (($user === '') !== ($pass === '')) {
+        throw new RuntimeException('smtp_user and smtp_password must be ' .
+            'set together');
+    }
+    if ($user !== '' && $tls === 'none') {
+        throw new RuntimeException('smtp_user requires smtp_tls, ' .
+            'credentials are never sent in clear');
+    }
+
+    $cafile = $ini['smtp_cafile'] ?? '';
+    if (!is_string($cafile) || ($cafile !== '' &&
+        (!str_starts_with($cafile, '/') || !is_readable($cafile)))) {
+        throw new RuntimeException('smtp_cafile must be the absolute path ' .
+            'of a readable file');
+    }
+
+    $verify = $ini['smtp_tls_verify'] ?? true;
+    if (!is_bool($verify)) {
+        throw new RuntimeException('smtp_tls_verify must be on or off');
+    }
+    if (!$verify && !config_loopback($host)) {
+        throw new RuntimeException('smtp_tls_verify can only be off for ' .
+            'localhost, 127.0.0.0/8 or ::1');
+    }
+
+    return [
+        'mail_transport' => 'smtp',
+        'smtp_host' => $host,
+        'smtp_port' => $port,
+        'smtp_tls' => $tls,
+        'smtp_user' => $user,
+        'smtp_password' => $pass,
+        'smtp_cafile' => $cafile,
+        'smtp_tls_verify' => $verify,
     ];
+}
+
+function config_loopback(string $host): bool
+{
+    if (strtolower($host) === 'localhost') {
+        return true;
+    }
+    $ip = @inet_pton($host);
+    return $ip !== false && (strlen($ip) === 4 ? $ip[0] === "\x7f" :
+        $ip === inet_pton('::1'));
 }
 
 /*
