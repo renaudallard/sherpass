@@ -169,6 +169,12 @@ function do_compose(array $cfg, PDO $db, int $now): void
             'be 1 to ' . SECRET_MAX . ' bytes long.', '', $rcpt_in));
         return;
     }
+    /* The page could not show such bytes as they were entered. */
+    if (preg_match('//u', $secret) !== 1 || str_contains($secret, "\0")) {
+        respond(400, $title, view_compose($v, $sender, 'The password ' .
+            'contains bytes that are not text.', '', $rcpt_in));
+        return;
+    }
     $rcpt = email_normalize($rcpt_in);
     if ($rcpt === null) {
         respond(400, $title, view_compose($v, $sender, 'The recipient ' .

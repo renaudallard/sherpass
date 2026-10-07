@@ -376,6 +376,15 @@ expect 400 "empty password rejected"
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/big" \
     --data-urlencode "rcpt=bob@example.org"
 expect 400 "oversized password rejected"
+printf 'ab\377cd' > "$T/binary"
+post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/binary" \
+    --data-urlencode "rcpt=bob@example.org"
+expect 400 "password with invalid UTF-8 rejected"
+has 'bytes that are not text'
+post "$BASE/" --data-urlencode "v=$V" --data "secret=ab%00cd" \
+    --data-urlencode "rcpt=bob@example.org"
+expect 400 "password with NUL rejected"
+has 'bytes that are not text'
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
     --data-urlencode "rcpt=bob"
 expect 400 "invalid recipient rejected"
