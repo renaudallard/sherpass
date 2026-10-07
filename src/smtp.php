@@ -271,6 +271,9 @@ function smtp_line(SmtpConn $c, string $what): string
         }
         $c->buf .= $data;
     }
+    if ($i >= SMTP_LINE_MAX) {
+        throw new RuntimeException("smtp: $what reply line too long");
+    }
     $line = substr($c->buf, 0, $i + 1);
     $c->buf = substr($c->buf, $i + 1);
     return $line;
