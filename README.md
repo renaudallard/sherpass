@@ -159,3 +159,7 @@ stored as files instead of being sent. Everything is written to
     nginx/sherpass.conf.example   example nginx virtual host
     tests/run.sh                  tests
     tests/sendmail.sh             sendmail stand-in used by the tests
+
+## License
+
+BSD 2-Clause, see `LICENSE`.
