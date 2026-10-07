@@ -419,10 +419,15 @@ but until then they should not end up in logs:
 
 - **Access log** - the example nginx configuration logs `$uri`, which
   leaves the query string out, instead of `$request`
-- **Error log** - nginx adds the full request line to its error log
-  entries. That includes PHP errors when php-fpm returns them over
-  FastCGI, which it does when PHP has no `error_log`. The installation
-  steps above give PHP its own log for that reason
+- **Error log** - nginx adds the full request line, query string
+  included, to its error log entries. That covers PHP errors when
+  php-fpm returns them over FastCGI, which it does when PHP has no
+  `error_log`, and the installation steps send them to syslog for that
+  reason. It also covers nginx's own errors, such as php-fpm being down
+  or restarting, or a script missing during an upgrade. Keep that log
+  away from other users: Debian makes it 0640 for the adm group, while
+  the newsyslog lines for `/var/www/logs/error.log` on OpenBSD create it
+  644, change that to 640
 
 ## Tests
 
