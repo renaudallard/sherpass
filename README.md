@@ -142,8 +142,8 @@ tagged `php`.
 
 Copy `nginx/sherpass.conf.example` to `/etc/nginx/sherpass.conf`,
 include it from the `http` block of `/etc/nginx/nginx.conf`, and set,
-besides `server_name` and the certificate paths, both `access_log` lines
-and `fastcgi_pass`:
+besides `server_name`, the host the port 80 server redirects to and the
+certificate paths, both `access_log` lines and `fastcgi_pass`:
 
 ```nginx
 access_log /var/www/logs/sherpass.access.log sherpass;
@@ -189,8 +189,9 @@ cp /var/www/sherpass/nginx/sherpass.conf.example \
 ln -s ../sites-available/sherpass /etc/nginx/sites-enabled/sherpass
 ```
 
-Adjust `server_name`, the certificate paths, and the php-fpm socket if it
-is not `/run/php/php8.4-fpm.sock`. Then tell sherpass where its
+Adjust `server_name`, the host the port 80 server redirects to, the
+certificate paths, and the php-fpm socket if it is not
+`/run/php/php8.4-fpm.sock`. Then tell sherpass where its
 configuration is, in the `location = /` block:
 
 ```nginx
@@ -376,7 +377,7 @@ not a way to ask for the default.
 | --- | --- |
 | `base_url` | Public URL of the site, used to build the sender link and the share link, at most 256 characters. Must use https, plain http is only accepted for localhost. |
 | `mail_from` | Sender address of every mail, a plain address without quotes. |
-| `mail_from_name` | Display name of the sender, 1 to 64 printable ASCII characters without quotes or backslashes. Defaults to `Sherpass`. |
+| `mail_from_name` | Display name of the sender, 1 to 64 printable ASCII characters without double quotes or backslashes. Defaults to `Sherpass`. |
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
 | `secret_ttl` | Lifetime of an unclaimed password, in seconds, at most 31536000 (a year). Default 2592000 (30 days). |
@@ -408,8 +409,9 @@ or numbers are turned into booleans or integers and rejected.
   recipient address are derived from it. The password is encrypted with
   XChaCha20-Poly1305 and the recipient address is only kept as a keyed
   BLAKE2b hash, so a copy of the database, including its deleted pages,
-  reveals neither the password nor the recipient, even together with the
-  mails. SQLite `secure_delete` is enabled as well
+  reveals neither the password nor the recipient, and even with the
+  mails sherpass sends, the password stays out of reach. SQLite
+  `secure_delete` is enabled as well
 - **Code** - the recipient gets a code rather than a link. It only works
   together with the share key, which the sender hands over by other
   means, so a mailbox alone is not enough to display the password
@@ -526,6 +528,9 @@ docs/logo.svg                 logo
 - Behind a reverse proxy, every request comes from the proxy address,
   so `ip_limit` applies to all users together
 - Passwords are limited to 4096 characters
+- For an hour, the rate limit counts keep sender addresses and client
+  addresses in the database, the latter next to the share links they
+  claimed
 
 ## License
 

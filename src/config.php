@@ -228,14 +228,15 @@ function config_base_url(mixed $v): string
 
 /*
  * The display name goes verbatim into a quoted From header, keep it to
- * printable ASCII without quotes or backslashes.
+ * printable ASCII without double quotes or backslashes.
  */
 function config_name(mixed $v): string
 {
     if (!is_string($v) || preg_match('/^[\x20-\x7e]{1,64}$/D', $v) !== 1 ||
         strpbrk($v, '"\\') !== false) {
         throw new RuntimeException('mail_from_name must be 1 to 64 ' .
-            'printable ASCII characters without quotes or backslashes');
+            'printable ASCII characters without double quotes or ' .
+            'backslashes');
     }
     return $v;
 }
