@@ -21,10 +21,11 @@ db_path = "/var/lib/sherpass/sherpass.db"
 
 ; The settings below are optional, the values shown are the defaults.
 
-; Lifetime of an unclaimed password, in seconds (30 days).
+; Lifetime of an unclaimed password, in seconds (30 days), a year at most.
 secret_ttl = 2592000
 
-; Lifetime of the links sent by mail, in seconds (30 minutes).
+; Lifetime of the links sent by mail, in seconds (30 minutes), a day at
+; most.
 token_ttl = 1800
 
 ; Rate limits, counted over the last hour. Addresses entered on the start

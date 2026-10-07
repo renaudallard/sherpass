@@ -183,6 +183,10 @@ cfgtest fail "$(echo "$GOOD" | sed 's/^secret_ttl.*/secret_ttl = 30d/')" \
     "non numeric ttl rejected"
 cfgtest fail "$(echo "$GOOD" | sed 's/^token_ttl.*/token_ttl = 0/')" \
     "zero ttl rejected"
+cfgtest fail "$(echo "$GOOD" | sed 's/^secret_ttl.*/secret_ttl = 31536001/')" \
+    "secret_ttl over a year rejected"
+cfgtest fail "$(echo "$GOOD" | sed 's/^token_ttl.*/token_ttl = 86401/')" \
+    "token_ttl over a day rejected"
 cfgtest pass "$(echo "$GOOD" | sed '/_ttl/d')" "missing ttls use defaults"
 cfgtest pass "$GOOD
 ip_limit = 500

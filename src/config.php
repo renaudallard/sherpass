@@ -70,8 +70,9 @@ function config_load(string $path): array
         'allowed_domains' => config_domains(config_get($ini,
             'allowed_domains', null)),
         'db_path' => config_path(config_get($ini, 'db_path', null)),
-        'secret_ttl' => config_int($ini, 'secret_ttl', 2592000, 1),
-        'token_ttl' => config_int($ini, 'token_ttl', 1800, 1),
+        /* A year and a day at most, now + ttl fits in 32 bits until 2037. */
+        'secret_ttl' => config_int($ini, 'secret_ttl', 2592000, 1, 31536000),
+        'token_ttl' => config_int($ini, 'token_ttl', 1800, 1, 86400),
         'ip_limit' => config_int($ini, 'ip_limit', 30, 1),
         'sender_limit' => config_int($ini, 'sender_limit', 3, 1),
         'recipient_limit' => config_int($ini, 'recipient_limit', 3, 1),

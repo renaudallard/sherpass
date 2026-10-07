@@ -141,8 +141,8 @@ not a way to ask for the default.
 | `mail_from_name` | Display name of the sender, printable ASCII without quotes or backslashes. Defaults to `Sherpass`. |
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
-| `secret_ttl` | Lifetime of an unclaimed password, in seconds. Default 2592000 (30 days). |
-| `token_ttl` | Lifetime of the links sent by mail, in seconds. Default 1800 (30 minutes). |
+| `secret_ttl` | Lifetime of an unclaimed password, in seconds, at most 31536000 (a year). Default 2592000 (30 days). |
+| `token_ttl` | Lifetime of the links sent by mail, in seconds, at most 86400 (a day). Default 1800 (30 minutes). |
 | `ip_limit` | Requests that can send a mail, an address entered on the start page or on a share page, per client and per hour. A client is an IPv4 address or an IPv6 /64. Default 30. Raise it if many users share one address, behind NAT for instance. |
 | `sender_limit` | Sender mails per address per hour. Default 3. |
 | `recipient_limit` | Recipient mails per password per hour. Default 3. |
