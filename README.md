@@ -185,8 +185,9 @@ The script needs php-cli, php-sqlite3, curl and openssl. It checks the
 configuration validation, then runs the whole flow against the PHP
 built-in server on 127.0.0.1:8089 (set `PORT` to change it). Mails are
 stored as files instead of being sent. SMTP delivery is then tested
-against `tests/smtpd.php` listening on the three following ports, with
-TLS, STARTTLS and without TLS, using a certificate made for the run.
+against `tests/smtpd.php` listening on the four following ports, with
+TLS, STARTTLS, without TLS and with long credentials, using a
+certificate made for the run.
 Everything is written to `tmp/test`.
 
 ## Files

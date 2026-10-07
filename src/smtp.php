@@ -151,8 +151,17 @@ function smtp_auth(SmtpConn $c, array $ext, string $user, string $pass): void
         }
     }
     if (in_array('PLAIN', $mechs, true)) {
-        smtp_cmd($c, 'AUTH PLAIN ' . base64_encode("\0$user\0$pass"),
-            'AUTH', [235]);
+        /*
+         * RFC 4954: the credentials go on a line of their own when they
+         * would make the command longer than the 512 octets of SMTP.
+         */
+        $resp = base64_encode("\0$user\0$pass");
+        if (strlen("AUTH PLAIN $resp\r\n") <= 512) {
+            smtp_cmd($c, "AUTH PLAIN $resp", 'AUTH', [235]);
+        } else {
+            smtp_cmd($c, 'AUTH PLAIN', 'AUTH', [334]);
+            smtp_cmd($c, $resp, 'AUTH', [235]);
+        }
     } elseif (in_array('LOGIN', $mechs, true)) {
         smtp_cmd($c, 'AUTH LOGIN', 'AUTH', [334]);
         smtp_cmd($c, base64_encode($user), 'AUTH', [334]);

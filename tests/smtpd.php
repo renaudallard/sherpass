@@ -91,7 +91,7 @@ function session($c, string $mode, array $ssl, string $user, string $pass,
             logline($log, 'TLS');
             break;
         case 'AUTH':
-            $authed = auth($c, $line, $user, $pass, $mechs);
+            $authed = auth($c, $line, $user, $pass, $mechs, $log);
             out($c, $authed ? '235 ok' : '535 bad credentials');
             break;
         case 'MAIL':
@@ -123,7 +123,7 @@ function session($c, string $mode, array $ssl, string $user, string $pass,
  * @param resource $c
  */
 function auth($c, string $line, string $user, string $pass,
-    string $mechs): bool
+    string $mechs, string $log): bool
 {
     $w = explode(' ', $line);
     $mech = strtoupper($w[1] ?? '');
@@ -131,7 +131,13 @@ function auth($c, string $line, string $user, string $pass,
         return false;
     }
     if ($mech === 'PLAIN') {
-        return base64_decode($w[2] ?? '', true) === "\0$user\0$pass";
+        $resp = $w[2] ?? null;
+        if ($resp === null) {
+            logline($log, 'AUTH PLAIN without initial response');
+            out($c, '334 ');
+            $resp = rtrim((string)fgets($c), "\r\n");
+        }
+        return base64_decode($resp, true) === "\0$user\0$pass";
     }
     out($c, '334 VXNlcm5hbWU6');
     $u = base64_decode(rtrim((string)fgets($c), "\r\n"), true);

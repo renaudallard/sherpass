@@ -537,6 +537,7 @@ expect 429 "configured IP limit applied"
 SMTP_TLS=$((PORT + 1))
 SMTP_STARTTLS=$((PORT + 2))
 SMTP_PLAIN=$((PORT + 3))
+SMTP_LONG=$((PORT + 4))
 
 # Start a test SMTP server: mode port name [user pass [mechs]].
 smtpd() {
@@ -578,6 +579,8 @@ smtpfail() {
 smtpd tls $SMTP_TLS tls sherpass 'p@ss w0rd'
 smtpd starttls $SMTP_STARTTLS starttls sherpass 'p@ss w0rd' LOGIN
 smtpd none $SMTP_PLAIN plain
+LONGPASS=$(head -c 400 /dev/zero | tr '\0' x)
+smtpd tls $SMTP_LONG long sherpass "$LONGPASS" PLAIN
 
 CREDS="smtp_user = 'sherpass'
 smtp_password = 'p@ss w0rd'"
@@ -624,6 +627,20 @@ smtp_tls = off"
 MAILDIR=$T/smtp-plain
 sender nina@allard.it
 ok "sender mail over plain SMTP"
+
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_LONG
+smtp_user = 'sherpass'
+smtp_password = '$LONGPASS'
+smtp_cafile = $T/smtp.crt"
+MAILDIR=$T/smtp-long
+sender olga@allard.it
+grep -qx 'AUTH PLAIN without initial response' "$T/smtp-long.log" ||
+    fail "long credentials sent with AUTH PLAIN"
+ok "long credentials sent on their own line"
+grep -qx 'AUTH PLAIN without initial response' "$T/smtp-tls.log" &&
+    fail "short credentials not sent with AUTH PLAIN"
+ok "short credentials sent with AUTH PLAIN"
 
 smtpconfig "smtp_host = localhost
 smtp_port = $SMTP_TLS
