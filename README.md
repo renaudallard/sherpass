@@ -586,6 +586,9 @@ and it shares one text password once, without files, API or CLI.
   mailbox can display the password
 - A compromised server sees passwords as they are submitted and
   displayed
+- A copy of the database made while a password waits, together with
+  its share link, opens that one password without the code. Once it is
+  displayed or expired, it is deleted and overwritten
 - The recipient needs the share link at hand to enter the code: if the
   page where the code was asked is closed, the share link opens it again
 - Without JavaScript, the display button cannot be disabled once
