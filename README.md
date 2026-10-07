@@ -201,6 +201,45 @@ sherpass reads `sherpass.ini` from its top directory, next to `public/`
 and `src/`, unless the `SHERPASS_CONFIG` FastCGI parameter names another
 file, as in the Debian setup above.
 
+## Serving under a path
+
+To serve sherpass under a path of an existing site, say
+`https://example.com/sherpass/`, set
+`base_url = "https://example.com/sherpass"`, add the `log_format sherpass`
+lines of the example to the `http` block, and put these locations in the
+`server` block of that site. On OpenBSD, with php-fpm in its chroot:
+
+```nginx
+location = /sherpass {
+    return 301 /sherpass/;
+}
+
+location = /sherpass/ {
+    include fastcgi_params;
+    fastcgi_param SCRIPT_FILENAME /sherpass/public/index.php;
+    fastcgi_pass unix:run/php-fpm.sock;
+    client_max_body_size 64k;
+    client_body_buffer_size 64k;
+    access_log /var/www/logs/sherpass.access.log sherpass;
+}
+
+location = /sherpass/style.css {
+    alias /var/www/sherpass/public/style.css;
+}
+
+location ^~ /sherpass/ {
+    return 404;
+}
+```
+
+`SCRIPT_FILENAME` is the path php-fpm sees, which nginx passes as it is,
+while it removes its chroot from `alias` as it does from `root`. The
+redirect matters: the pages use relative links, which only resolve with
+the final slash. On Debian, `SCRIPT_FILENAME` is
+`/var/www/sherpass/public/index.php`, the socket and the log go where the
+Debian setup puts them, and the `SHERPASS_CONFIG` line of that setup goes
+in the `location = /sherpass/` block.
+
 ## Running in a chroot
 
 sherpass only needs its own tree, the database directory and a log
