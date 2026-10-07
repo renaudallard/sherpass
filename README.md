@@ -299,9 +299,8 @@ how it runs on OpenBSD, where PHP logs to syslog. In any chroot:
   ones php-fpm sees inside the chroot
 - **Mail** - `mail()` runs `/bin/sh` and `sendmail`, which a chroot does
   not have: use `mail_transport = smtp`
-- **Names** - on Linux, give `smtp_host` as an address: without
-  `/etc/hosts` in the chroot, glibc cannot resolve `localhost`. OpenBSD
-  resolves it anyway. Other names need `/etc/resolv.conf` in the chroot
+- **Names** - `smtp_host = localhost` connects to 127.0.0.1 without
+  looking the name up. Other names need `/etc/resolv.conf` in the chroot
 - **TLS** - checking a certificate needs the CA certificates in the
   chroot: point `smtp_cafile` to a copy inside it. On OpenBSD, copying
   `/etc/ssl/cert.pem` to `/var/www/etc/ssl/cert.pem` works as well
@@ -335,7 +334,7 @@ not a way to ask for the default.
 | `recipient_limit` | Codes mailed per password per hour. Default 3. |
 | `recipient_delay` | Minimum delay between two codes mailed for the same password, in seconds, 0 to 3600. Default 60. |
 | `mail_transport` | `sendmail` to hand mails to the local MTA through PHP `mail()`, `smtp` to talk to an SMTP server directly. Default `sendmail`, which refuses any `smtp_*` setting. |
-| `smtp_host` | SMTP server name or IP address, mandatory with `smtp`. |
+| `smtp_host` | SMTP server name or IP address, mandatory with `smtp`. `localhost` means 127.0.0.1 and is never looked up. |
 | `smtp_tls` | `tls` for TLS from the start, `starttls` to upgrade a plain connection, `off` for a relay without TLS, only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `tls`. |
 | `smtp_port` | SMTP port. Default 465 with `tls`, 587 with `starttls`, 25 with `off`. |
 | `smtp_user`, `smtp_password` | Credentials, set both or none. AUTH PLAIN is used, or AUTH LOGIN if the server only offers that. They require TLS. |

@@ -66,8 +66,14 @@ function smtp_send(array $cfg, string $from, string $to, string $msg): void
         $ssl['verify_peer_name'] = false;
         $ssl['allow_self_signed'] = true;
     }
-    $v6 = filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
-    $addr = $v6 ? "[$host]" : $host;
+    /*
+     * localhost is taken as loopback, so it must not be looked up: in a
+     * chroot without /etc/hosts, the resolver would ask DNS for it.
+     */
+    $addr = strtolower($host) === 'localhost' ? '127.0.0.1' : $host;
+    if (filter_var($addr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
+        $addr = "[$addr]";
+    }
     $scheme = $cfg['smtp_tls'] === 'tls' ? 'tls' : 'tcp';
 
     $errors = [];
