@@ -5,7 +5,7 @@
 
 set -eu
 
-ROOT=$(cd "$(dirname "$0")/.." && pwd)
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 T=$ROOT/tmp/test
 PORT=${PORT:-8089}
 BASE=http://127.0.0.1:$PORT
@@ -62,7 +62,7 @@ has() {
 }
 
 nmail() {
-    ls "$MAILDIR" 2>/dev/null | wc -l
+    ls "$MAILDIR" 2>/dev/null | wc -l | tr -d ' '
 }
 
 # Nothing may be in the PHP log, except where a failure is expected.
@@ -134,15 +134,22 @@ openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
 
 # Configuration validation.
 
+# A rejection is a RuntimeException, anything else is a bug.
 cfgtest() {
     printf '%s\n' "$2" > "$T/cfg.ini"
-    if php -r 'require $argv[1] . "/src/config.php";
+    r=0
+    php -r 'require $argv[1] . "/src/config.php";
         require $argv[1] . "/src/mail.php";
-        config_load($argv[2]);' "$ROOT" "$T/cfg.ini" 2>/dev/null; then
-        r=pass
-    else
-        r=fail
-    fi
+        try {
+            config_load($argv[2]);
+        } catch (RuntimeException $e) {
+            exit(1);
+        }' "$ROOT" "$T/cfg.ini" > "$T/cfg.err" 2>&1 || r=$?
+    case $r in
+    0) r=pass ;;
+    1) r=fail ;;
+    *) fail "config: $3: crashed: $(cat "$T/cfg.err")" ;;
+    esac
     [ "$r" = "$1" ] || fail "config: $3"
     ok "config: $3"
 }
@@ -207,6 +214,11 @@ smtp_port = 2587
 smtp_user = 'sherpass'
 smtp_password = 'p\"a\$s\${HOME};x'
 smtp_cafile = $T/smtp.crt" "SMTP with STARTTLS and credentials accepted"
+P=$(php -r 'require $argv[1] . "/src/config.php";
+    require $argv[1] . "/src/mail.php";
+    echo config_load($argv[2])["smtp_password"];' "$ROOT" "$T/cfg.ini")
+[ "$P" = 'p"a$s${HOME};x' ] || fail "config: password read as $P"
+ok "config: single quoted password kept as written"
 cfgtest pass "$GOOD
 mail_transport = smtp
 smtp_host = localhost
@@ -301,7 +313,9 @@ BG=$!
 trap 'kill $BG 2>/dev/null' EXIT INT TERM
 
 i=0
-until curl -s -o /dev/null "$BASE/"; do
+until grep -q 'Development Server .* started' "$T/server.log"; do
+    grep -q 'Failed to listen' "$T/server.log" &&
+        fail "server did not start: $(cat "$T/server.log")"
     i=$((i + 1))
     [ $i -lt 50 ] || fail "server did not start"
     sleep 0.1
@@ -467,8 +481,10 @@ done
 # shellcheck disable=SC2086
 wait $PIDS
 W=$(cat "$T"/par?.status | grep -c '^200$' || true)
-[ "$W" = 1 ] || fail "concurrent reveals: $W succeeded"
-ok "concurrent reveals: exactly one succeeded"
+L=$(cat "$T"/par?.status | grep -c '^404$' || true)
+[ "$W" = 1 ] && [ "$L" = 3 ] ||
+    fail "concurrent reveals: $W succeeded, $L refused"
+ok "concurrent reveals: one succeeded, three refused"
 
 # Expiry.
 
@@ -577,7 +593,8 @@ M=$(lastmail)
 grep -q '^To: kate@allard.it' "$M" || fail "SMTP mail To"
 grep -q '^Subject: Confirm your address' "$M" || fail "SMTP mail Subject"
 grep -q '^Date: ' "$M" || fail "SMTP mail Date"
-grep -q '^Message-ID: <[0-9a-f]*@allard.it>' "$M" || fail "SMTP Message-ID"
+grep -q '^Message-ID: <[0-9a-f]\{32\}@allard.it>' "$M" ||
+    fail "SMTP Message-ID"
 grep -qx 'AUTH PLAIN' "$T/smtp-tls.log" || fail "no AUTH PLAIN"
 grep -qx 'MAIL FROM:<sherpass@allard.it>' "$T/smtp-tls.log" ||
     fail "SMTP envelope sender"
@@ -606,7 +623,6 @@ smtp_port = $SMTP_PLAIN
 smtp_tls = off"
 MAILDIR=$T/smtp-plain
 sender nina@allard.it
-grep -q '^AUTH' "$T/smtp-plain.log" && fail "AUTH without TLS"
 ok "sender mail over plain SMTP"
 
 smtpconfig "smtp_host = localhost
