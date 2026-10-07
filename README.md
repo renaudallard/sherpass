@@ -341,6 +341,26 @@ the final slash. On Debian, `SCRIPT_FILENAME` is
 Debian setup puts them, and the `SHERPASS_CONFIG` line of that setup goes
 in the `location = /sherpass/` block.
 
+## Behind a proxy
+
+When nginx gets the requests from another proxy or a load balancer,
+they all come from its address, and `ip_limit` counts every user
+together. The realip module of nginx, built in on OpenBSD and Debian,
+takes the client address from the header the proxy adds, only for
+requests that come from that proxy. In the `server` block, with the
+proxy at 192.0.2.10:
+
+```nginx
+set_real_ip_from 192.0.2.10;
+real_ip_header X-Forwarded-For;
+```
+
+`$remote_addr` is then the client address, in the access log and in the
+`REMOTE_ADDR` that sherpass counts. nginx takes the last address of the
+header, the one the proxy appends, so a client cannot pick another one
+by sending the header itself. Behind several proxies in a row, add a
+`set_real_ip_from` line for each of them and `real_ip_recursive on`.
+
 ## Running in a chroot
 
 sherpass only needs its own tree and the database directory, which is
@@ -383,7 +403,7 @@ not a way to ask for the default.
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
 | `secret_ttl` | Lifetime of an unclaimed password, in seconds, at most 31536000 (a year). Default 2592000 (30 days). |
 | `token_ttl` | Lifetime of the sender link and of the recipient code sent by mail, in seconds, at most 86400 (a day). Default 1800 (30 minutes). |
-| `ip_limit` | Requests that can send a mail, an address entered on the start page or on a share page, per client and per hour. A client is an IPv4 address or an IPv6 /64. Default 30. Raise it if many users share one address, behind NAT for instance. |
+| `ip_limit` | Requests that can send a mail, an address entered on the start page or on a share page, per client and per hour. A client is an IPv4 address or an IPv6 /64. Default 30. Raise it if many users share one address, behind NAT for instance, and see [Behind a proxy](#behind-a-proxy) if a proxy forwards the requests. |
 | `sender_limit` | Sender mails per address per hour, subaddresses such as `user+tag` counting as `user`. Default 3. |
 | `recipient_limit` | Codes mailed per password per hour. Default 3. |
 | `recipient_delay` | Minimum delay between two codes mailed for the same password, in seconds, 0 to 3600. Default 60. |
@@ -526,8 +546,6 @@ docs/logo.svg                 logo
 - The work and the mail that follow a matching claim keep a php-fpm
   worker busy for a moment, which can only show when no other worker is
   free
-- Behind a reverse proxy, every request comes from the proxy address,
-  so `ip_limit` applies to all users together
 - Passwords are limited to 4096 characters
 - For an hour, the rate limit counts keep sender addresses and client
   addresses in the database, the latter next to the share links they
