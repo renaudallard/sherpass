@@ -1,0 +1,96 @@
+:root {
+    color-scheme: light dark;
+    --fg: #1d1d1f;
+    --bg: #f6f6f6;
+    --muted: #5c5c60;
+    --box: #ffffff;
+    --border: #c8c8cc;
+    --accent: #1a5fb4;
+    --error: #b00020;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --fg: #e6e6e6;
+        --bg: #161618;
+        --muted: #a3a3a8;
+        --box: #222226;
+        --border: #46464c;
+        --error: #ff8a80;
+    }
+}
+
+body {
+    margin: 0;
+    font: 16px/1.5 system-ui, sans-serif;
+    color: var(--fg);
+    background: var(--bg);
+}
+
+main {
+    max-width: 36rem;
+    margin: 3rem auto;
+    padding: 0 1rem;
+}
+
+h1 {
+    font-size: 1.5rem;
+    margin: 0 0 1.5rem;
+}
+
+label {
+    display: block;
+    margin: 1rem 0 0.25rem;
+    font-weight: 600;
+}
+
+input, textarea {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 0.5rem;
+    font: inherit;
+    color: inherit;
+    background: var(--box);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+textarea {
+    min-height: 6rem;
+    resize: vertical;
+}
+
+textarea, pre {
+    font-family: ui-monospace, monospace;
+}
+
+button {
+    margin-top: 1rem;
+    padding: 0.5rem 1.25rem;
+    font: inherit;
+    color: #ffffff;
+    background: var(--accent);
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+pre.box {
+    padding: 0.75rem;
+    background: var(--box);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+
+.error {
+    color: var(--error);
+    font-weight: 600;
+}
+
+.muted {
+    color: var(--muted);
+    font-size: 0.9rem;
+}

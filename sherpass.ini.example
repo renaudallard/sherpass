@@ -1,0 +1,26 @@
+; Sherpass configuration.
+;
+; Copy to sherpass.ini next to this file, or anywhere else and point the
+; SHERPASS_CONFIG environment variable to it.
+
+; Public URL of the site, used to build the links sent by mail. Must be
+; https, plain http is only accepted for localhost.
+base_url = "https://pass.allard.it"
+
+; Sender of every mail.
+mail_from = "sherpass@allard.it"
+mail_from_name = "Sherpass"
+
+; Domains whose addresses may share a password. Exact match, subdomains
+; are not included. Repeat the line for each domain.
+allowed_domains[] = "allard.it"
+
+; SQLite database, absolute path. Its directory must be writable by the
+; PHP user and lie outside the web root.
+db_path = "/var/lib/sherpass/sherpass.db"
+
+; Lifetime of an unclaimed password, in seconds (30 days).
+secret_ttl = 2592000
+
+; Lifetime of the links sent by mail, in seconds (30 minutes).
+token_ttl = 1800

@@ -1,0 +1,49 @@
+# Sherpass virtual host for nginx and php-fpm.
+#
+# Tokens travel in query strings, so the access log uses $uri, which
+# leaves the query string out, instead of $request.
+
+log_format sherpass '$remote_addr - $remote_user [$time_local] '
+                    '"$request_method $uri $server_protocol" $status '
+                    '$body_bytes_sent "$http_user_agent"';
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name pass.allard.it;
+
+    access_log /var/log/nginx/sherpass.access.log sherpass;
+
+    return 301 https://pass.allard.it$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name pass.allard.it;
+
+    ssl_certificate /etc/letsencrypt/live/pass.allard.it/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/pass.allard.it/privkey.pem;
+
+    access_log /var/log/nginx/sherpass.access.log sherpass;
+
+    root /var/www/sherpass/public;
+    client_max_body_size 16k;
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+
+    location = / {
+        include fastcgi_params;
+        fastcgi_param SCRIPT_FILENAME $document_root/index.php;
+        fastcgi_param SHERPASS_CONFIG /etc/sherpass/sherpass.ini;
+        fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+    }
+
+    location = /style.css {
+    }
+
+    location / {
+        return 404;
+    }
+}
