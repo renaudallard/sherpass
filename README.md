@@ -109,8 +109,6 @@ tests. Then:
 
 ```sh
 install -d -o www -g www -m 0700 /var/www/sherpass/db
-touch /var/www/logs/sherpass-php.log
-chown www:www /var/www/logs/sherpass-php.log
 install -g www -m 0640 /var/www/sherpass/sherpass.ini.example \
     /var/www/sherpass/sherpass.ini
 ```
@@ -126,13 +124,17 @@ smtp_tls = off
 ```
 
 The default `/etc/php-fpm.conf` already runs its pool as www in the
-chroot, listening on `/var/www/run/php-fpm.sock`. Give PHP a log inside
-the chroot by adding to the pool:
+chroot, listening on `/var/www/run/php-fpm.sock`. Have PHP log to syslog
+by adding to the pool:
 
 ```ini
-php_admin_value[error_log] = /logs/sherpass-php.log
+php_admin_value[error_log] = syslog
 php_admin_flag[log_errors] = on
 ```
+
+From the chroot, syslog(3) still reaches syslogd through sendsyslog(2),
+with no file to create or rotate. The lines land in `/var/log/messages`,
+tagged `php`.
 
 Copy `nginx/sherpass.conf.example` to `/etc/nginx/sherpass.conf`,
 include it from the `http` block of `/etc/nginx/nginx.conf`, and set,
@@ -205,9 +207,19 @@ file, as in the Debian setup above.
 
 To serve sherpass under a path of an existing site, say
 `https://example.com/sherpass/`, set
-`base_url = "https://example.com/sherpass"`, add the `log_format sherpass`
-lines of the example to the `http` block, and put these locations in the
-`server` block of that site. On OpenBSD, with php-fpm in its chroot:
+`base_url = "https://example.com/sherpass"`. The access log format of the
+example has to be known before the `server` block of that site uses it:
+put it in the `http` block, or at the top of the file holding that
+`server` block:
+
+```nginx
+log_format sherpass '$remote_addr - $remote_user [$time_local] '
+                    '"$request_method $uri $server_protocol" $status '
+                    '$body_bytes_sent "$http_user_agent"';
+```
+
+Then put these locations in the `server` block. On OpenBSD, with php-fpm
+in its chroot:
 
 ```nginx
 location = /sherpass {
@@ -242,8 +254,8 @@ in the `location = /sherpass/` block.
 
 ## Running in a chroot
 
-sherpass only needs its own tree, the database directory and a log
-file, which is how it runs on OpenBSD. In any chroot:
+sherpass only needs its own tree and the database directory, which is
+how it runs on OpenBSD, where PHP logs to syslog. In any chroot:
 
 - **Paths** - those in `sherpass.ini` and in `SHERPASS_CONFIG` are the
   ones php-fpm sees inside the chroot
