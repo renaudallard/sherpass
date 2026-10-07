@@ -163,13 +163,24 @@ function view_claim(string $s, string $error = ''): string
         HTML;
 }
 
-function view_claim_sent(string $ttl): string
+/*
+ * Shown whether the address matched or not, so it has to explain why no
+ * mail may come even for the right one.
+ */
+function view_claim_sent(int $ttl, int $limit, int $delay): string
 {
-    $ttl = h($ttl);
+    $ttl = h(duration($ttl));
+    $rate = $limit === 1 ? 'once' : "$limit times";
+    $rate .= ' an hour' . ($delay > 0 ? ', ' . duration($delay) . ' apart' :
+        '');
+    $rate = h($rate);
     return <<<HTML
         <p>If this address is the recipient of the password, a mail has
-        been sent to it. Open the link it contains within $ttl.</p>
-        <p class="muted">No mail? Check the address and try again.</p>
+        been sent to it, within the limits below. Open the link it
+        contains within $ttl.</p>
+        <p class="muted">No mail? Check the address and your spam folder.
+        A link is sent at most $rate, and each new one replaces the
+        previous one.</p>
         HTML;
 }
 

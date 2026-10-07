@@ -264,8 +264,8 @@ function do_claim(array $cfg, PDO $db, int $now): void
         too_many();
         return;
     }
-    respond(200, 'Check your mail',
-        view_claim_sent(duration($cfg['token_ttl'])));
+    respond(200, 'Check your mail', view_claim_sent($cfg['token_ttl'],
+        $cfg['recipient_limit'], $cfg['recipient_delay']));
     finish_response();
 
     $r = token_new();
