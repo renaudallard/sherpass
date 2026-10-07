@@ -31,9 +31,11 @@ one.
   database id, the encryption key and the key used to hash the recipient
   address are derived from it. The password is encrypted with
   XChaCha20-Poly1305 and the recipient address is only kept as a keyed
-  BLAKE2b hash. A copy of the database, a backup or data recovered from
-  the disk reveals neither the password nor the recipient. SQLite
-  `secure_delete` is enabled as well.
+  BLAKE2b hash. A copy of the database, including its deleted pages,
+  reveals neither the password nor the recipient. SQLite `secure_delete`
+  is enabled as well. Other files on the server can: until it is
+  delivered, the reveal mail waits in the queue of a local MTA with the
+  share key in its link, and the MTA log names the recipient.
 * Every other token is 256 bits of randomness, only its SHA-256 is
   stored, and each one works once.
 * Mail security scanners fetch the links they find in mail. Following a
@@ -78,9 +80,11 @@ Requests are rate limited, see `ip_limit`, `sender_limit`,
 `recipient_limit` and `recipient_delay` below. Passwords are limited to
 4096 bytes.
 
-Sherpass cannot protect against someone who has both the share link and
-access to the recipient mailbox, or against a compromised server, which
-sees passwords as they are submitted and displayed.
+Sherpass cannot protect against someone who can read the recipient
+mailbox. The reveal mail carries the share key as well, so the share link
+is only needed when no reveal link is waiting there. Nor can it protect
+against a compromised server, which sees passwords as they are submitted
+and displayed.
 
 ## Requirements
 
