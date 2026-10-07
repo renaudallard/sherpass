@@ -22,9 +22,9 @@
 
 <p align="center">
   <b>Share one password with one person, once.</b><br/>
-  The sender proves an address in an allowed domain, the recipient proves
-  theirs by mail, and the password is displayed a single time before it
-  is deleted.
+  The sender proves an email address in an allowed domain, the recipient
+  proves theirs by mail, and the password is displayed a single time
+  before it is deleted.
 </p>
 
 ---
@@ -50,7 +50,7 @@ gives nginx and php-fpm.
 - **Mail scanners** - the code mail holds no link, and following the
   sender link consumes nothing
 - **No JavaScript** - strict Content-Security-Policy, no external
-  resources, nothing cached
+  resources, pages never cached
 - **Mail** - through the local MTA, or over SMTP with TLS or STARTTLS,
   verified certificates and AUTH PLAIN or LOGIN
 - **Rate limits** - per client, per sender address and per password,
@@ -116,8 +116,9 @@ install -g www -m 0640 /var/www/sherpass/sherpass.ini.example \
     /var/www/sherpass/sherpass.ini
 ```
 
-Paths in `sherpass.ini` are the ones php-fpm sees, without `/var/www`,
-and mail is best handed to smtpd(8), which listens on lo0:
+Edit `/var/www/sherpass/sherpass.ini`: set `base_url`, `mail_from` and
+`allowed_domains`. Paths there are the ones php-fpm sees, without
+`/var/www`, and mail is best handed to smtpd(8), which listens on lo0:
 
 ```ini
 db_path = "/sherpass/db/sherpass.db"
@@ -141,7 +142,8 @@ tagged `php`.
 
 Copy `nginx/sherpass.conf.example` to `/etc/nginx/sherpass.conf`,
 include it from the `http` block of `/etc/nginx/nginx.conf`, and set,
-besides `server_name` and the certificate paths:
+besides `server_name` and the certificate paths, both `access_log` lines
+and `fastcgi_pass`:
 
 ```nginx
 access_log /var/www/logs/sherpass.access.log sherpass;
@@ -186,8 +188,9 @@ cp /var/www/sherpass/nginx/sherpass.conf.example \
 ln -s ../sites-available/sherpass /etc/nginx/sites-enabled/sherpass
 ```
 
-Adjust `server_name`, the certificate paths and the php-fpm socket, and
-tell sherpass where its configuration is, in the `location = /` block:
+Adjust `server_name`, the certificate paths, and the php-fpm socket if it
+is not `/run/php/php8.4-fpm.sock`. Then tell sherpass where its
+configuration is, in the `location = /` block:
 
 ```nginx
 fastcgi_param SHERPASS_CONFIG /etc/sherpass/sherpass.ini;
@@ -321,7 +324,7 @@ not a way to ask for the default.
 | Key | Meaning |
 | --- | --- |
 | `base_url` | Public URL of the site, used to build the sender link and the share link, at most 256 characters. Must use https, plain http is only accepted for localhost. |
-| `mail_from` | Sender address of every mail. |
+| `mail_from` | Sender address of every mail, a plain address without quotes. |
 | `mail_from_name` | Display name of the sender, 1 to 64 printable ASCII characters without quotes or backslashes. Defaults to `Sherpass`. |
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
@@ -357,8 +360,8 @@ or numbers are turned into booleans or integers and rejected.
 - **Code** - the recipient gets a code rather than a link. It only works
   together with the share key, which the sender hands over by other
   means, so a mailbox alone is not enough to display the password
-- **Tokens** - every token, the code included, is 256 bits of
-  randomness, only its SHA-256 is stored, and each one works once
+- **Tokens** - the sender token and the code are 256 bits of
+  randomness each, only their SHA-256 is stored, and each works once
 - **Mail scanners** - they fetch the links they find in mail. Following
   the sender link never consumes anything, it leads to a form, and the
   code mail holds no link at all
@@ -415,7 +418,8 @@ built-in server on 127.0.0.1:8089 (set `PORT` to change it). Mails are
 stored as files instead of being sent. SMTP delivery is then tested
 against `tests/smtpd.php` listening on the four following ports, with
 TLS, STARTTLS, without TLS and with long credentials, using a
-certificate made for the run. Everything is written to `tmp/test`.
+certificate made for the run, while nothing may listen on `PORT` + 9,
+used to test failing mails. Everything is written to `tmp/test`.
 
 `.github/workflows/tests.yml` runs it on every push, in a Debian trixie
 container with its PHP 8.4.
