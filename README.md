@@ -199,6 +199,47 @@ fastcgi_param SHERPASS_CONFIG /etc/sherpass/sherpass.ini;
 
 Then run `nginx -t && systemctl reload nginx`.
 
+### A user of its own
+
+As written, these steps run sherpass in the default php-fpm pool, as the
+user of the web server. Anything else running as that user, nginx itself
+or another PHP application, can then read `sherpass.ini`, SMTP password
+included, and write to the database. To keep sherpass apart, give it a
+pool and a user of its own, and let the web server only reach its
+socket. On OpenBSD:
+
+```sh
+useradd -d /var/empty -s /sbin/nologin _sherpass
+chown _sherpass:_sherpass /var/www/sherpass/db
+chgrp _sherpass /var/www/sherpass/sherpass.ini
+```
+
+with this pool in `/etc/php-fpm.d/sherpass.conf`, and
+`fastcgi_pass unix:run/sherpass.sock;` in the nginx configuration:
+
+```ini
+[sherpass]
+user = _sherpass
+group = _sherpass
+listen = /var/www/run/sherpass.sock
+listen.owner = www
+listen.group = www
+listen.mode = 0660
+pm = ondemand
+pm.max_children = 5
+chroot = /var/www
+php_admin_value[error_log] = syslog
+php_admin_flag[log_errors] = on
+```
+
+On Debian, the same with `useradd --system --user-group --home-dir
+/nonexistent --shell /usr/sbin/nologin sherpass`, owning
+`/var/lib/sherpass` and in the group of `/etc/sherpass/sherpass.ini`, a
+pool in `/etc/php/8.4/fpm/pool.d/sherpass.conf` with `user` and `group`
+set to `sherpass`, `listen = /run/php/sherpass.sock`, `listen.owner` and
+`listen.group` set to `www-data` and no `chroot`, and
+`fastcgi_pass unix:/run/php/sherpass.sock;` in nginx.
+
 ### The nginx example
 
 It only passes `/` to PHP, serves `style.css` and returns 404 for
