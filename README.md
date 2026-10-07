@@ -109,7 +109,9 @@ Adjust `server_name`, the certificate paths and the php-fpm socket, then
 `nginx -t && systemctl reload nginx`.
 
 The example only passes `/` to PHP, serves `style.css` and returns 404
-for anything else. It also tells PHP where the configuration is, through
+for anything else. Its request body buffer is as large as the largest
+accepted body: nginx writes bigger bodies to a temporary file, and the
+compose form carries the password in clear. It also tells PHP where the configuration is, through
 the `SHERPASS_CONFIG` FastCGI parameter. Without it, Sherpass reads
 `sherpass.ini` from its top directory.
 
