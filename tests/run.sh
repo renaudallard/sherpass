@@ -782,7 +782,7 @@ smtp_port = $DEAD
 smtp_tls = off"
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=sam@example.org"
 expect 200 "claim answered while the code mail fails"
-grep -qF 'cannot send the code' "$T/php.log" || fail "code mail did not fail"
+grep -qF 'cannot send a code' "$T/php.log" || fail "code mail did not fail"
 grep -v '\] sherpass: ' "$T/php.log" && fail "PHP logged more than the failure"
 : > "$T/php.log"
 smtpconfig "smtp_host = localhost

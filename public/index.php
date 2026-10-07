@@ -336,7 +336,8 @@ function do_claim(array $cfg, PDO $db, int $now): void
     }
     [$row, $hit] = $found;
     if (!mail_recipient($cfg, $email, $row['sender'], code_encode($r))) {
-        error_log("sherpass: cannot send the code of secret $id");
+        /* No id: the relay's refusal often names the recipient. */
+        error_log('sherpass: cannot send a code');
         /*
          * Give back the code delivered before, unless a newer one has
          * replaced this one meanwhile, and allow a new try within the
