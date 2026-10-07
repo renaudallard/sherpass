@@ -95,10 +95,10 @@ function smtp_session(SmtpConn $c, array $cfg, string $from, string $to,
 {
     $helo = smtp_helo($cfg['base_url']);
     smtp_read($c, 'greeting', [220]);
-    $ext = smtp_cmd($c, "EHLO $helo", 'EHLO', [250]);
+    $ext = smtp_ext(smtp_cmd($c, "EHLO $helo", 'EHLO', [250]));
 
     if ($cfg['smtp_tls'] === 'starttls') {
-        if (!in_array('STARTTLS', smtp_keywords($ext), true)) {
+        if (!isset($ext['STARTTLS'])) {
             throw new RuntimeException('smtp: server does not offer ' .
                 'STARTTLS');
         }
@@ -117,7 +117,7 @@ function smtp_session(SmtpConn $c, array $cfg, string $from, string $to,
             $c->fp, true, SMTP_CRYPTO)) !== true) {
             throw smtp_error('TLS negotiation failed', $errors);
         }
-        $ext = smtp_cmd($c, "EHLO $helo", 'EHLO', [250]);
+        $ext = smtp_ext(smtp_cmd($c, "EHLO $helo", 'EHLO', [250]));
     }
 
     if ($cfg['smtp_user'] !== '') {
@@ -143,17 +143,11 @@ function smtp_session(SmtpConn $c, array $cfg, string $from, string $to,
 }
 
 /**
- * @param list<string> $ext
+ * @param array<string, list<string>> $ext
  */
 function smtp_auth(SmtpConn $c, array $ext, string $user, string $pass): void
 {
-    $mechs = [];
-    foreach (array_slice($ext, 1) as $line) {
-        $w = explode(' ', strtoupper(trim($line)));
-        if ($w[0] === 'AUTH') {
-            $mechs = array_slice($w, 1);
-        }
-    }
+    $mechs = $ext['AUTH'] ?? [];
     if (in_array('PLAIN', $mechs, true)) {
         /*
          * RFC 4954: the credentials go on a line of their own when they
@@ -268,18 +262,23 @@ function smtp_deadline(SmtpConn $c, string $what): void
 }
 
 /**
- * Extension keywords of an EHLO reply, the first line is the greeting.
+ * Extensions of an EHLO reply, whose first line is the greeting: each
+ * keyword with its parameters, in upper case.
  *
- * @param list<string> $ext
- * @return list<string>
+ * @param list<string> $lines
+ * @return array<string, list<string>>
  */
-function smtp_keywords(array $ext): array
+function smtp_ext(array $lines): array
 {
-    $kw = [];
-    foreach (array_slice($ext, 1) as $line) {
-        $kw[] = strtoupper(strtok($line, ' ') ?: '');
+    $ext = [];
+    foreach (array_slice($lines, 1) as $line) {
+        $w = preg_split('/ +/', strtoupper(trim($line)), -1,
+            PREG_SPLIT_NO_EMPTY);
+        if ($w !== false && $w !== []) {
+            $ext[$w[0]] = array_slice($w, 1);
+        }
     }
-    return $kw;
+    return $ext;
 }
 
 /*

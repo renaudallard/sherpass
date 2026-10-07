@@ -213,6 +213,19 @@ function do_compose(array $cfg, PDO $db, int $now): void
         gmdate('Y-m-d H:i', $expires) . ' UTC'));
 }
 
+/**
+ * The sender and recipient tag of secret $id, false if it cannot be
+ * claimed any more.
+ *
+ * @return array{sender: string, rcpt: string}|false
+ */
+function secret_row(PDO $db, string $id, int $now): array|false
+{
+    return db_query($db, 'SELECT sender, rcpt FROM secret ' .
+        'WHERE id = ? AND claimed IS NULL AND expires > ?',
+        [$id, $now])->fetch();
+}
+
 /*
  * Return the keys derived from share key $s if its secret can still be
  * claimed.
@@ -226,10 +239,7 @@ function secret_lookup(PDO $db, mixed $s, int $now): ?array
         return null;
     }
     $keys = secret_keys($key);
-    $found = db_query($db, 'SELECT 1 FROM secret ' .
-        'WHERE id = ? AND claimed IS NULL AND expires > ?',
-        [$keys[0], $now])->fetchColumn();
-    return $found === false ? null : $keys;
+    return secret_row($db, $keys[0], $now) === false ? null : $keys;
 }
 
 function page_claim(PDO $db, int $now): void
@@ -284,9 +294,7 @@ function do_claim(array $cfg, PDO $db, int $now): void
     $name = 'secret:' . $id;
     $sender = db_tx($db, function () use ($db, $now, $cfg, $id, $tag, $email,
         $r, $name): ?string {
-        $row = db_query($db, 'SELECT sender, rcpt FROM secret ' .
-            'WHERE id = ? AND claimed IS NULL AND expires > ?',
-            [$id, $now])->fetch();
+        $row = secret_row($db, $id, $now);
         if ($row === false ||
             !hash_equals($row['rcpt'], rcpt_tag($email, $tag)) ||
             !throttle_ok($db, $name, 1, $cfg['recipient_delay'], $now) ||
