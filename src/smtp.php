@@ -57,6 +57,10 @@ function smtp_send(array $cfg, string $from, string $to, string $msg): void
     if ($cfg['smtp_cafile'] !== '') {
         $ssl['cafile'] = $cfg['smtp_cafile'];
     }
+    /* RFC 6066 does not allow an address as server name. */
+    if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+        $ssl['SNI_enabled'] = false;
+    }
     if (!$cfg['smtp_tls_verify']) {
         $ssl['verify_peer'] = false;
         $ssl['verify_peer_name'] = false;
