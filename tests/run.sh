@@ -361,6 +361,14 @@ ok "security headers"
 
 post "$BASE/" --data-urlencode "email=nobody"
 expect 400 "invalid sender address rejected"
+for site in cross-site same-site; do
+    post "$BASE/" -H "Sec-Fetch-Site: $site" \
+        --data-urlencode "email=alice@allard.it"
+    expect 403 "form posted from a $site page refused"
+done
+[ "$(nmail)" = 0 ] || fail "mail sent for a form from another site"
+post "$BASE/" -H "Sec-Fetch-Site: same-origin" --data-urlencode "email=nobody"
+expect 400 "form posted from the site itself accepted"
 for a in bob@example.com bob@sub.allard.it bob@allard.it.example.com; do
     post "$BASE/" --data-urlencode "email=$a"
     expect 403 "sender $a rejected"

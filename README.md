@@ -384,6 +384,9 @@ or numbers are turned into booleans or integers and rejected.
 - **Addresses** - only plain addresses are accepted, with no quoted
   local part and no % or ! routing operator, which some relays follow
   to another domain
+- **Forms** - a form another site makes a visitor's browser post is
+  refused, as browsers tell with `Sec-Fetch-Site`, so that it cannot
+  spend the limits of the visitor's address
 - **Pages** - sent with a strict Content-Security-Policy, no JavaScript,
   `Referrer-Policy: no-referrer` and `Cache-Control: no-store`. The
   password field disables browser spellcheck, which may send its content

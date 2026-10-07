@@ -30,6 +30,17 @@ function main(array $cfg, PDO $db, int $now): void
 {
     $method = $_SERVER['REQUEST_METHOD'] ?? '';
     if ($method === 'POST') {
+        /*
+         * Browsers tell where a form comes from. One another site makes a
+         * visitor post would spend the limits of the visitor's address.
+         * Origin cannot tell, no-referrer makes browsers send it as null.
+         */
+        $site = $_SERVER['HTTP_SEC_FETCH_SITE'] ?? 'none';
+        if ($site !== 'same-origin' && $site !== 'none') {
+            respond(403, 'Error', view_message('Forms of this site can only ' .
+                'be sent from it.'));
+            return;
+        }
         $in = $_POST;
         if (isset($in['v'])) {
             do_compose($cfg, $db, $now);
