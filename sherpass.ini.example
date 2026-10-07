@@ -27,8 +27,9 @@ secret_ttl = 2592000
 ; Lifetime of the links sent by mail, in seconds (30 minutes).
 token_ttl = 1800
 
-; Rate limits, counted over the last hour. POST requests per client IP,
-; raise it if many users share one address.
+; Rate limits, counted over the last hour. Addresses entered on the start
+; page or on a share page, per IPv4 address or IPv6 /64. Raise it if many
+; users share one address.
 ip_limit = 30
 
 ; Sender mails per address.

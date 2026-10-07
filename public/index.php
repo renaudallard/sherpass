@@ -67,11 +67,6 @@ function too_many(): void
         'later.'));
 }
 
-function ip_key(): string
-{
-    return 'ip:' . ($_SERVER['REMOTE_ADDR'] ?? '');
-}
-
 /*
  * Complete the response before doing more work. Under php-fpm this hands
  * the whole page to the web server and ends the request.
@@ -103,7 +98,7 @@ function do_start(array $cfg, PDO $db, int $now): void
     }
 
     $token = token_new();
-    $ip = ip_key();
+    $ip = throttle_ip();
     $from = 'from:' . $email;
     $ok = db_tx($db, function () use ($db, $now, $cfg, $token, $email,
         $ip, $from): bool {
@@ -256,7 +251,7 @@ function do_claim(array $cfg, PDO $db, int $now): void
         return;
     }
 
-    $ip = ip_key();
+    $ip = throttle_ip();
     $ok = db_tx($db, function () use ($db, $now, $cfg, $ip): bool {
         if (!throttle_ok($db, $ip, $cfg['ip_limit'], THROTTLE_WINDOW,
             $now)) {

@@ -136,7 +136,7 @@ mandatory, the other settings have defaults.
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
 | `secret_ttl` | Lifetime of an unclaimed password, in seconds. Default 2592000 (30 days). |
 | `token_ttl` | Lifetime of the links sent by mail, in seconds. Default 1800 (30 minutes). |
-| `ip_limit` | POST requests per client IP per hour. Default 30. Raise it if many users share one address, behind NAT for instance. |
+| `ip_limit` | Requests that can send a mail, an address entered on the start page or on a share page, per client and per hour. A client is an IPv4 address or an IPv6 /64. Default 30. Raise it if many users share one address, behind NAT for instance. |
 | `sender_limit` | Sender mails per address per hour. Default 3. |
 | `recipient_limit` | Recipient mails per password per hour. Default 3. |
 | `recipient_delay` | Minimum delay between two recipient mails for the same password, in seconds, 0 to 3600. Default 60. |

@@ -235,6 +235,20 @@ smtp_host = $h
 smtp_tls_verify = off" "unverified TLS to $h accepted"
 done
 
+# Rate limiting name of a client address.
+iptest() {
+    r=$(php -r 'require $argv[1] . "/src/db.php";
+        $_SERVER["REMOTE_ADDR"] = $argv[2];
+        echo throttle_ip();' "$ROOT" "$1")
+    [ "$r" = "$2" ] || fail "client $1 counted as $r"
+    ok "client $1 counted as $2"
+}
+
+iptest 192.0.2.7 ip:192.0.2.7
+iptest 2001:db8:1:2:aaaa::1 ip:2001:db8:1:2::/64
+iptest 2001:db8:1:2:ffff:1:2:3 ip:2001:db8:1:2::/64
+iptest ::ffff:192.0.2.7 ip:192.0.2.7
+
 # End-to-end flow.
 
 webconfig ""

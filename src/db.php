@@ -110,6 +110,25 @@ function throttle_ok(PDO $db, string $name, int $max, int $window,
     return (int)$n < $max;
 }
 
+/*
+ * Rate limiting name of the client: its IPv4 address, or its /64 for
+ * IPv6, as a single host usually gets a whole /64 to pick from.
+ */
+function throttle_ip(): string
+{
+    $addr = $_SERVER['REMOTE_ADDR'] ?? '';
+    $bin = @inet_pton($addr);
+    if ($bin === false) {
+        return "ip:$addr";
+    }
+    if (strlen($bin) === 16 &&
+        !str_starts_with($bin, str_repeat("\0", 10) . "\xff\xff")) {
+        return 'ip:' . inet_ntop(substr($bin, 0, 8) . str_repeat("\0", 8)) .
+            '/64';
+    }
+    return 'ip:' . inet_ntop(substr($bin, -4));
+}
+
 function throttle_hit(PDO $db, string $name, int $now): void
 {
     db_query($db, 'INSERT INTO throttle (name, ts) VALUES (?, ?)',
