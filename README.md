@@ -225,16 +225,21 @@ With the archive, as in the OpenBSD setup:
 ```sh
 d=$(mktemp -d)
 ftp -o - https://github.com/renaudallard/sherpass/archive/refs/heads/main.tar.gz |
-    tar xzf - -C "$d"
-rm -rf /var/www/sherpass/public /var/www/sherpass/src
-cp -R "$d"/sherpass-main/* /var/www/sherpass/
+    tar xzf - -C "$d" &&
+    test -f "$d/sherpass-main/public/index.php" &&
+    rm -rf /var/www/sherpass/public /var/www/sherpass/src &&
+    cp -R "$d"/sherpass-main/* /var/www/sherpass/
 rm -rf "$d"
 ```
 
-The archive holds neither `sherpass.ini` nor `db/`, so they are kept,
-and removing `public/` and `src/` first drops files a version no longer
-has. PHP picks the new files up within seconds: opcache checks their
-dates by default. With `opcache.validate_timestamps = 0`, restart php-fpm
+Nothing is removed unless the download worked. The archive holds neither
+`sherpass.ini` nor `db/`, so they are kept, and removing `public/` and
+`src/` first drops files a version no longer has. Requests that come
+during the copy fail, and nginx then logs their full request line, see
+[Logging](#logging).
+
+PHP picks the new files up within seconds: opcache checks their dates by
+default. With `opcache.validate_timestamps = 0`, restart php-fpm
 (`rcctl restart php84_fpm`, `systemctl restart php8.4-fpm`).
 
 New settings come with defaults, so `sherpass.ini` only needs a change if
