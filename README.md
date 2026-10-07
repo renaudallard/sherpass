@@ -90,7 +90,8 @@ and displayed.
 
 * PHP 8.0 or later with the sodium and pdo_sqlite extensions, run through
   php-fpm. Developed and tested with PHP 8.4.
-* nginx, or another web server, see below.
+* nginx, 1.25.1 or later for the example configuration, which uses
+  `http2 on`, or another web server, see below.
 * A local MTA providing `sendmail`, for instance Exim, Postfix or
   OpenSMTPD, or an SMTP server, see `mail_transport` below. With
   `sendmail`, the default `sendmail_path` (`/usr/sbin/sendmail -t -i` on
@@ -138,7 +139,7 @@ not a way to ask for the default.
 |---|---|
 | `base_url` | Public URL of the site, used to build the links sent by mail, at most 256 characters. Must use https, plain http is only accepted for localhost. |
 | `mail_from` | Sender address of every mail. |
-| `mail_from_name` | Display name of the sender, printable ASCII without quotes or backslashes. Defaults to `Sherpass`. |
+| `mail_from_name` | Display name of the sender, 1 to 64 printable ASCII characters without quotes or backslashes. Defaults to `Sherpass`. |
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
 | `secret_ttl` | Lifetime of an unclaimed password, in seconds, at most 31536000 (a year). Default 2592000 (30 days). |

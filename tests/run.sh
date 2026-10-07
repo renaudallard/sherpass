@@ -599,7 +599,7 @@ mail_transport = smtp
 $1"
 }
 
-# Expect delivery with settings $1 to fail, logging $2.
+# Expect delivery with settings $1 to fail, logging $2, in the test named $3.
 smtpfail() {
     noerrors "before: $3"
     smtpconfig "$1"
