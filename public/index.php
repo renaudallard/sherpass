@@ -47,7 +47,7 @@ function main(array $cfg, PDO $db, int $now): void
         if (isset($in['v'])) {
             do_compose($cfg, $db, $now);
         } elseif (isset($in['s'], $in['r'])) {
-            do_reveal($db, $now);
+            do_reveal($cfg, $db, $now);
         } elseif (isset($in['s'])) {
             do_claim($cfg, $db, $now);
         } elseif (isset($in['c'])) {
@@ -193,13 +193,14 @@ function do_compose(array $cfg, PDO $db, int $now): void
     $rcpt_in = $_POST['rcpt'] ?? '';
     $secret = is_string($secret) ? $secret : '';
     $rcpt_in = is_string($rcpt_in) ? $rcpt_in : '';
+    $notify = ($_POST['notify'] ?? '') === '1';
     $max_ttl = $cfg['secret_ttl'];
     /* A form opened before the lifetime could be picked sends none. */
     $ttl = $_POST['ttl'] ?? (string)$max_ttl;
     $ttl = is_string($ttl) && ctype_digit($ttl) ? (int)$ttl : 0;
     if (!in_array($ttl, lifetimes($max_ttl), true)) {
         respond(400, $title, view_compose($v, $sender, $max_ttl, $max_ttl,
-            'The lifetime is not valid.', '', $rcpt_in));
+            'The lifetime is not valid.', '', $rcpt_in, $notify));
         return;
     }
     /* The page could not show such bytes as they were entered. */
@@ -207,7 +208,7 @@ function do_compose(array $cfg, PDO $db, int $now): void
         (preg_match('//u', $secret) !== 1 || str_contains($secret, "\0"))) {
         respond(400, $title, view_compose($v, $sender, $max_ttl, $ttl,
             'The password contains bytes that are not text.', '',
-            $rcpt_in));
+            $rcpt_in, $notify));
         return;
     }
     /*
@@ -218,14 +219,14 @@ function do_compose(array $cfg, PDO $db, int $now): void
         preg_match_all('/\r\n|./su', $secret) > SECRET_MAX) {
         respond(400, $title, view_compose($v, $sender, $max_ttl, $ttl,
             'The password must be 1 to ' . SECRET_MAX . ' characters long.',
-            '', $rcpt_in));
+            '', $rcpt_in, $notify));
         return;
     }
     $rcpt = email_normalize($rcpt_in);
     if ($rcpt === null) {
         respond(400, $title, view_compose($v, $sender, $max_ttl, $ttl,
             'The recipient email address is not valid.', $secret,
-            $rcpt_in));
+            $rcpt_in, $notify));
         return;
     }
 
@@ -234,17 +235,20 @@ function do_compose(array $cfg, PDO $db, int $now): void
     [$id, $enc, $tag] = secret_keys($key);
     $expires = $now + $ttl;
     $ok = db_tx($db, function () use ($db, $now, $token, $id, $enc, $tag,
-        $sender, $rcpt, $secret, $expires, $cancel): bool {
+        $sender, $rcpt, $secret, $expires, $cancel, $notify): bool {
         $st = db_query($db, 'DELETE FROM sender ' .
             'WHERE hash = ? AND expires > ?', [token_hash($token), $now]);
         if ($st->rowCount() !== 1) {
             return false;
         }
+        /* The mail telling of the display names the recipient. */
         db_query($db, 'INSERT INTO secret ' .
-            '(id, sender, rcpt, box, expires, cancel) ' .
-            'VALUES (?, ?, ?, ?, ?, ?)',
-            [$id, sender_seal($sender, $id, $enc), rcpt_tag($rcpt, $tag),
-            secret_seal($secret, $id, $enc), $expires, token_hash($cancel)]);
+            '(id, sender, rcpt, box, expires, cancel, notify) ' .
+            'VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [$id, field_seal($sender, $id, 'sender', $enc),
+            rcpt_tag($rcpt, $tag), secret_seal($secret, $id, $enc),
+            $expires, token_hash($cancel),
+            $notify ? field_seal($rcpt, $id, 'notify', $enc) : null]);
         return true;
     });
     if (!$ok) {
@@ -253,13 +257,13 @@ function do_compose(array $cfg, PDO $db, int $now): void
     }
     /* The password is shared either way, the page tells if this failed. */
     $mailed = mail_cancel($cfg, $sender, $rcpt, utc($expires),
-        $cfg['base_url'] . '/?c=' . token_encode($cancel));
+        $cfg['base_url'] . '/?c=' . token_encode($cancel), $notify);
     if (!$mailed) {
         error_log("sherpass: cannot send mail to $sender");
     }
     respond(200, 'Password shared', view_share(
         $cfg['base_url'] . '/?s=' . token_encode($key), $rcpt,
-        utc($expires), $mailed));
+        utc($expires), $mailed, $notify));
 }
 
 /*
@@ -435,10 +439,10 @@ function claim_pad(PDO $db, string $id, int $now): void
 }
 
 /*
- * Return the id, the encryption key, the encrypted sender and secret
- * if share key $s and code $r are valid.
+ * Return the id, the encryption key, the encrypted sender, secret and
+ * recipient to notify, if share key $s and code $r are valid.
  *
- * @return array{string, string, string, string}|null
+ * @return array{string, string, string, string, ?string}|null
  */
 function reveal_lookup(PDO $db, mixed $s, mixed $r, int $now): ?array
 {
@@ -448,13 +452,14 @@ function reveal_lookup(PDO $db, mixed $s, mixed $r, int $now): ?array
         return null;
     }
     [$id, $enc] = secret_keys($key);
-    $row = db_query($db, 'SELECT sender, box FROM secret WHERE id = ? ' .
-        'AND reveal = ? AND reveal_expires > ? AND claimed IS NULL ' .
-        'AND expires > ?', [$id, token_hash($token), $now, $now])->fetch();
+    $row = db_query($db, 'SELECT sender, box, notify FROM secret ' .
+        'WHERE id = ? AND reveal = ? AND reveal_expires > ? ' .
+        'AND claimed IS NULL AND expires > ?',
+        [$id, token_hash($token), $now, $now])->fetch();
     if ($row === false) {
         return null;
     }
-    return [$id, $enc, $row['sender'], $row['box']];
+    return [$id, $enc, $row['sender'], $row['box'], $row['notify']];
 }
 
 /*
@@ -462,7 +467,7 @@ function reveal_lookup(PDO $db, mixed $s, mixed $r, int $now): ?array
  * concurrent requests. It is deleted once the page has been handed to the
  * web server, and a client going away must not stop that.
  */
-function do_reveal(PDO $db, int $now): void
+function do_reveal(array $cfg, PDO $db, int $now): void
 {
     ignore_user_abort(true);
     $found = db_tx($db, function () use ($db, $now): ?array {
@@ -485,9 +490,13 @@ function do_reveal(PDO $db, int $now): void
             'This code is wrong or has expired.'));
         return;
     }
-    [$id, $enc, $sender, $box] = $found;
+    [$id, $enc, $sender, $box, $notify] = $found;
     $sender = sender_open($sender, $id, $enc);
-    $secret = $sender === null ? null : secret_open($box, $id, $enc);
+    /* Empty when the sender asked for no mail. */
+    $rcpt = $notify === null ? '' :
+        field_open($notify, $id, 'notify', $enc);
+    $secret = $sender === null || $rcpt === null ? null :
+        secret_open($box, $id, $enc);
     if ($secret === null) {
         db_query($db, 'DELETE FROM secret WHERE id = ?', [$id]);
         throw new RuntimeException("cannot decrypt secret $id");
@@ -497,6 +506,9 @@ function do_reveal(PDO $db, int $now): void
     finish_response();
     db_query($db, 'DELETE FROM secret WHERE id = ?', [$id]);
     sodium_memzero($secret);
+    if ($rcpt !== '' && !mail_displayed($cfg, $sender, $rcpt, utc($now))) {
+        error_log("sherpass: cannot send mail to $sender");
+    }
 }
 
 try {

@@ -106,11 +106,11 @@ sql() {
             echo implode("|", $r), "\n";' "$T/sherpass.db" "$1"
 }
 
-# Change the first hex digit of the stored sender, so that it no longer
-# decrypts.
-damage_sender() {
-    sql "UPDATE secret SET sender = CASE substr(sender, 1, 1)
-        WHEN '0' THEN '1' ELSE '0' END || substr(sender, 2)" > /dev/null
+# Change the first hex digit of column $1 of the secret, so that it no
+# longer decrypts.
+damage() {
+    sql "UPDATE secret SET $1 = CASE substr($1, 1, 1)
+        WHEN '0' THEN '1' ELSE '0' END || substr($1, 2)" > /dev/null
 }
 
 # Run a sender verification for $1, set V to the sender token.
@@ -335,9 +335,9 @@ iptest 2001:db8:1:2:aaaa::1 ip:2001:db8:1:2::/64
 iptest 2001:db8:1:2:ffff:1:2:3 ip:2001:db8:1:2::/64
 iptest ::ffff:192.0.2.7 ip:192.0.2.7
 
-# End-to-end flow.
+# End-to-end flow. The client address limit gets its own test below.
 
-webconfig ""
+webconfig "ip_limit = 1000"
 
 SHERPASS_CONFIG=$T/sherpass.ini PHP_CLI_SERVER_WORKERS=4 \
     php -d sendmail_path="$ROOT/tests/sendmail.sh $MAILDIR" \
@@ -413,6 +413,9 @@ has 'alice@allard.it'
 has '<option value="3600">1 hour</option>'
 has '<option value="2592000" selected>30 days</option>'
 ok "lifetimes offered up to secret_ttl, the default"
+has 'name="notify"'
+grep -q 'value="1" checked' "$BODY" && fail "notification asked by default"
+ok "notification offered, not asked by default"
 
 printf '\n  p<b>a&s"s'"'"'\n\tw\303\251rd \342\202\254 ' > "$T/secret"
 : > "$T/empty"
@@ -443,6 +446,11 @@ has 'bytes that are not text'
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
     --data-urlencode "rcpt=bob"
 expect 400 "invalid recipient rejected"
+post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
+    --data-urlencode "rcpt=bob" --data-urlencode "notify=1"
+expect 400 "invalid recipient rejected with a notification asked"
+has 'value="1" checked'
+ok "notification kept after an input error"
 for t in 7200 31536000 x ''; do
     post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
         --data-urlencode "rcpt=bob@example.org" --data-urlencode "ttl=$t"
@@ -524,9 +532,11 @@ ok "password kept after wrong codes"
 post "$BASE/" --data-urlencode "s=$(rnd)" --data-urlencode "r=$R"
 expect 404 "code with another share key rejected"
 
+N=$(nmail)
 post "$BASE/" --data-urlencode "s=$S" \
     --data-urlencode "r=  $(echo "$R" | tr a-f A-F) "
 expect 200 "password revealed with a code in capitals and spaces"
+[ "$(nmail)" = "$N" ] || fail "sender mailed about a display not asked for"
 has 'alice@allard.it'
 shown "$T/secret" || fail "password not displayed escaped and intact"
 grep -qF 'p<b>a' "$BODY" && fail "password not escaped"
@@ -565,7 +575,7 @@ ok "sender stored in clear still shown"
 noerrors "before damaged senders"
 sender yvonne@allard.it
 share "$V" "$T/secret" zoe@example.org
-damage_sender
+damage sender
 N=$(nmail)
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=zoe@example.org"
 expect 200 "claim with a damaged sender answered"
@@ -579,7 +589,7 @@ sql 'DELETE FROM secret' > /dev/null
 sender yvonne@allard.it
 share "$V" "$T/secret" zoe@example.org
 claim "$S" zoe@example.org
-damage_sender
+damage sender
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 500 "reveal with a damaged sender refused"
 shown "$T/secret" && fail "password displayed with a damaged sender"
@@ -619,6 +629,47 @@ expect 404 "share link dead after cancel"
 post "$BASE/" --data-urlencode "c=$C"
 expect 404 "cancel works only once"
 
+# The sender can ask for a mail once the password is displayed.
+sender nora@allard.it
+post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
+    --data-urlencode "rcpt=oliver@example.org" --data-urlencode "notify=1"
+expect 200 "password shared with a notification asked"
+has 'You will get a mail when the password is displayed'
+S=$(grep -o "$BASE/?s=[A-Za-z0-9_-]*" "$BODY") || fail "no share link"
+S=${S#*s=}
+grep -q 'You will get a mail when it is displayed' "$(lastmail)" ||
+    fail "cancel mail does not tell of the notification"
+case "$(sql 'SELECT notify FROM secret')" in
+''|*oliver*) fail "recipient to notify missing or in clear" ;;
+esac
+ok "recipient to notify stored encrypted"
+claim "$S" oliver@example.org
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 200 "password with a notification displayed"
+M=$(lastmail)
+grep -q '^To: nora@allard.it' "$M" || fail "notification To"
+grep -q '^Subject: Your password has been displayed' "$M" ||
+    fail "notification Subject"
+grep -q 'shared with oliver@example.org was displayed on' "$M" ||
+    fail "notification lacks the recipient"
+grep -q 'https\{0,1\}://' "$M" && fail "link in the notification"
+ok "sender told of the display"
+noerrors "before a damaged recipient to notify"
+sender nora@allard.it
+post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
+    --data-urlencode "rcpt=oliver@example.org" --data-urlencode "notify=1"
+S=$(grep -o "$BASE/?s=[A-Za-z0-9_-]*" "$BODY") || fail "no share link"
+S=${S#*s=}
+claim "$S" oliver@example.org
+damage notify
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 500 "reveal with a damaged recipient to notify refused"
+shown "$T/secret" && fail "password displayed with a damaged notify"
+[ "$(sql 'SELECT COUNT(*) FROM secret')" = 0 ] ||
+    fail "secret with a damaged notify kept"
+ok "nothing displayed for a damaged recipient to notify"
+: > "$T/php.log"
+
 # A database made before the migrations gets them and keeps its rows.
 M=$(php -r 'require $argv[1] . "/src/db.php";
     $db = new PDO("sqlite:" . $argv[2]);
@@ -631,9 +682,10 @@ M=$(php -r 'require $argv[1] . "/src/db.php";
         ->fetchAll(), "name");
     echo (int)$db->query("PRAGMA user_version")->fetchColumn() ===
         count(MIGRATIONS) ? "v" : "-", in_array("cancel", $cols, true) ?
-        "c" : "-", $db->query("SELECT COUNT(*) FROM secret")->fetchColumn();
+        "c" : "-", in_array("notify", $cols, true) ? "n" : "-",
+        $db->query("SELECT COUNT(*) FROM secret")->fetchColumn();
     ' "$ROOT" "$T/old.db")
-[ "$M" = vc1 ] || fail "old database not migrated: $M"
+[ "$M" = vcn1 ] || fail "old database not migrated: $M"
 ok "old database migrated with its rows"
 
 # Concurrent reveals: exactly one may succeed.

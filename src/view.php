@@ -137,7 +137,8 @@ function lifetimes(int $max): array
  * password can make, to a temporary file, but not a multipart one.
  */
 function view_compose(string $v, string $sender, int $max_ttl, int $ttl,
-    string $error = '', string $secret = '', string $rcpt = ''): string
+    string $error = '', string $secret = '', string $rcpt = '',
+    bool $notify = false): string
 {
     $err = view_error($error);
     $v = h($v);
@@ -152,6 +153,7 @@ function view_compose(string $v, string $sender, int $max_ttl, int $ttl,
         $ttls .= "<option value=\"$t\"$sel>" . h(duration($t)) .
             "</option>\n";
     }
+    $checked = $notify ? ' checked' : '';
     return <<<HTML
         $err<p>Sharing as <strong>$sender</strong>.</p>
         <form method="post" action="./" enctype="multipart/form-data">
@@ -166,13 +168,15 @@ function view_compose(string $v, string $sender, int $max_ttl, int $ttl,
         <label for="ttl">Delete it if not displayed within</label>
         <select id="ttl" name="ttl">
         $ttls</select>
+        <label class="check"><input type="checkbox" name="notify"
+         value="1"$checked> Mail me when the password is displayed</label>
         <button type="submit">Share</button>
         </form>
         HTML;
 }
 
 function view_share(string $url, string $rcpt, string $expires,
-    bool $mailed): string
+    bool $mailed, bool $notify): string
 {
     $url = h($url);
     $rcpt = h($rcpt);
@@ -181,6 +185,10 @@ function view_share(string $url, string $rcpt, string $expires,
         "the password before it is displayed has been sent to you.</p>\n" :
         '<p class="error">The mail with a link to delete the password ' .
         "could not be sent. The share link works all the same.</p>\n";
+    if ($notify) {
+        $cancel .= '<p class="muted">You will get a mail when the ' .
+            "password is displayed.</p>\n";
+    }
     return <<<HTML
         <p>Send this link to the recipient:</p>
         <pre class="box">$url</pre>

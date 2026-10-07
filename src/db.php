@@ -46,6 +46,7 @@ SQL;
 const MIGRATIONS = [
     'ALTER TABLE secret ADD COLUMN cancel TEXT;
     CREATE INDEX secret_cancel ON secret (cancel);',
+    'ALTER TABLE secret ADD COLUMN notify TEXT;',
 ];
 
 function db_open(string $path): PDO

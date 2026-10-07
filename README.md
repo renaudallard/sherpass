@@ -44,12 +44,14 @@ gives nginx and php-fpm.
   after confirming the address with a mailed link
 - **Cancel** - the sender gets a mail with a link to delete the password
   until it is displayed
+- **Notification** - if the sender asks, a mail tells them when the
+  password has been displayed
 - **Verified recipient** - anyone can open a share link, but only the
   recipient mailbox receives the code that, entered on the share page,
   displays the password, and the page does not tell who the recipient is
-- **Key out of the server** - the database holds the password and its
-  sender as XChaCha20-Poly1305 ciphertext and a keyed hash of the
-  recipient, the key is only in the share link, never in a mail
+- **Key out of the server** - a password, its sender and its recipient
+  are only stored encrypted with XChaCha20-Poly1305 or as a keyed hash,
+  the key is only in the share link, never in a mail
 - **Mail scanners** - the code mail holds no link, and following the
   sender link consumes nothing
 - **No JavaScript** - strict Content-Security-Policy, no external
@@ -79,8 +81,9 @@ gives nginx and php-fpm.
    the share link alone does not reveal who the recipient is.
 4. The recipient enters the code on the share page, which displays the
    password. The password is deleted from the server right after the
-   page has been sent. Displaying it thus takes both the share link and
-   the recipient mailbox.
+   page has been sent, and the sender is told by mail if they asked.
+   Displaying it thus takes both the share link and the recipient
+   mailbox.
 
 The sender link and the code are valid for `token_ttl` seconds, 30
 minutes by default. An unclaimed password is deleted after `secret_ttl`
@@ -435,12 +438,13 @@ or numbers are turned into booleans or integers and rejected.
 
 - **Share key** - a random 256-bit key, never stored and never mailed.
   The database id, the encryption key and the key used to hash the
-  recipient address are derived from it. The password and the sender
-  address are encrypted with XChaCha20-Poly1305 and the recipient
-  address is only kept as a keyed BLAKE2b hash, so a copy of the
-  database, including its deleted pages, reveals neither the password
-  nor its recipient, and its sender only through the short lived rows
-  listed under [Limitations](#limitations). Even with the mails sherpass
+  recipient address are derived from it. The password, the sender
+  address and the recipient address, when the sender asked to be told
+  of the display, are encrypted with XChaCha20-Poly1305. Matching the
+  recipient only uses a keyed BLAKE2b hash. A copy of the database,
+  including its deleted pages, thus reveals neither the password nor its
+  recipient, and its sender only through the short lived rows listed
+  under [Limitations](#limitations). Even with the mails sherpass
   sends, the password stays out of reach. SQLite `secure_delete` is
   enabled as well
 - **Code** - the recipient gets a code rather than a link. It only works

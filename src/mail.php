@@ -134,11 +134,12 @@ function mail_recipient(array $cfg, string $to, string $sender,
  * @param array<string, mixed> $cfg
  */
 function mail_cancel(array $cfg, string $to, string $rcpt, string $expires,
-    string $link): bool
+    string $link, bool $notify): bool
 {
+    $told = $notify ? ' You will get a mail when it is displayed.' : '';
     $body = <<<TXT
         You have shared a password with $rcpt. It can be displayed once,
-        until $expires.
+        until $expires.$told
 
         To delete it before it is displayed, open this link:
 
@@ -150,4 +151,21 @@ function mail_cancel(array $cfg, string $to, string $rcpt, string $expires,
 
         TXT;
     return mail_send($cfg, $to, 'You have shared a password', $body);
+}
+
+/**
+ * @param array<string, mixed> $cfg
+ */
+function mail_displayed(array $cfg, string $to, string $rcpt,
+    string $when): bool
+{
+    $body = <<<TXT
+        The password you shared with $rcpt was displayed on $when. It has
+        been deleted from the server.
+
+        If $rcpt did not display it, someone else had both the share link
+        and access to that mailbox: change the password.
+
+        TXT;
+    return mail_send($cfg, $to, 'Your password has been displayed', $body);
 }
