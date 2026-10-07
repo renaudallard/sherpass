@@ -524,7 +524,7 @@ certificate made for the run, while nothing may listen on `PORT` + 9,
 used to test failing mails. Everything is written to `tmp/test`.
 
 `.github/workflows/tests.yml` runs it on every push, in a Debian trixie
-container with its PHP 8.4.
+container and in an OpenBSD 7.9 VM, both with PHP 8.4.
 
 ## Layout
 

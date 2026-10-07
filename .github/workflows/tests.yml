@@ -24,3 +24,22 @@ jobs:
 
       - name: Run the tests
         run: tests/run.sh
+
+  openbsd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # OpenBSD 7.9, whose PHP 8.4 has sodium built in.
+      - name: Run the tests in an OpenBSD VM
+        uses: vmactions/openbsd-vm@5f7b2c933b8846a138361d6843c52af4bef5d945 # v1.4.8
+        with:
+          release: "7.9"
+          copyback: false
+          prepare: |
+            pkg_add -I php%8.4 php-pdo_sqlite%8.4 curl
+            ln -sf ../php-8.4.sample/pdo_sqlite.ini /etc/php-8.4/
+            ln -sf php-8.4 /usr/local/bin/php
+          run: tests/run.sh
