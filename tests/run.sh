@@ -505,11 +505,14 @@ cmp -s "$BODY" "$T/wrong" || fail "answer differs for the right recipient"
 ok "same answer for right and wrong recipient"
 has 'name="r"'
 has 'Press the button only once'
+has 'Enter it here within 30 minutes'
 ok "code asked after the address"
 M=$(lastmail)
 grep -q '^To: bob@example.org' "$M" || fail "code mail To"
 grep -q '^alice@allard.it has shared a password' "$M" ||
     fail "code mail lacks sender"
+grep -q 'enter this code within 30 minutes' "$M" ||
+    fail "code mail lacks its lifetime"
 ok "code mailed to recipient"
 grep -qF "$S" "$M" && fail "share key in the code mail"
 grep -qF "$BASE" "$M" && fail "link in the code mail"
@@ -749,9 +752,19 @@ sender dave@allard.it
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
     --data-urlencode "rcpt=erin@example.org" --data-urlencode "ttl=3600"
 expect 200 "password shared for an hour"
+S=$(grep -o "$BASE/?s=[A-Za-z0-9_-]*" "$BODY") || fail "no share link"
+S=${S#*s=}
 [ "$(sql "SELECT expires - strftime('%s', 'now') BETWEEN 3590 AND 3600
     FROM secret")" = 1 ] || fail "picked lifetime not applied"
 ok "picked lifetime applied"
+sql "UPDATE secret SET expires = strftime('%s', 'now') + 630" > /dev/null
+claim "$S" erin@example.org
+has 'Enter it here within 10 minutes'
+grep -q 'enter this code within 10 minutes' "$(lastmail)" ||
+    fail "code mail promises more than the password has left"
+[ "$(sql 'SELECT reveal_expires <= expires FROM secret')" = 1 ] ||
+    fail "code outlives its password"
+ok "code cut to the time its password has left"
 sql 'DELETE FROM secret' > /dev/null
 
 sender erin@allard.it

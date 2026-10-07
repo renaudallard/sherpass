@@ -88,9 +88,10 @@ gives nginx and php-fpm.
 The sender link and the code are valid for `token_ttl` seconds, 30
 minutes by default. An unclaimed password is deleted after `secret_ttl`
 seconds, 30 days by default, unless the sender picks a shorter lifetime
-among 1 hour, 1 day, 7 days and 30 days. Asking again for a code
-replaces the previous one. The share page also has a field for a code
-received earlier.
+among 1 hour, 1 day, 7 days and 30 days. A code never outlives its
+password: with less time left, the page and the mail give that time,
+in whole minutes. Asking again for a code replaces the previous one.
+The share page also has a field for a code received earlier.
 
 ## Install
 
@@ -413,7 +414,7 @@ not a way to ask for the default.
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
 | `secret_ttl` | Longest lifetime of an unclaimed password, in seconds, at most 31536000 (a year). The share form offers it, selected, after the shorter of 1 hour, 1 day, 7 days and 30 days. Default 2592000 (30 days). |
-| `token_ttl` | Lifetime of the sender link and of the recipient code sent by mail, in seconds, at most 86400 (a day). Default 1800 (30 minutes). |
+| `token_ttl` | Lifetime of the sender link and of the recipient code sent by mail, in seconds, at most 86400 (a day), the code never outliving its password. Default 1800 (30 minutes). |
 | `ip_limit` | Requests that can send a mail, an address entered on the start page or on a share page, per client and per hour. A client is an IPv4 address or an IPv6 /64. Default 30. Raise it if many users share one address, behind NAT for instance, and see [Behind a proxy](#behind-a-proxy) if a proxy forwards the requests. |
 | `sender_limit` | Sender mails per address per hour, subaddresses such as `user+tag` counting as `user`. Default 3. |
 | `recipient_limit` | Codes mailed per password per hour. Default 3. |

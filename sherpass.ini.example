@@ -28,7 +28,7 @@ db_path = "/var/lib/sherpass/sherpass.db"
 secret_ttl = 2592000
 
 ; Lifetime of the sender link and of the recipient code sent by mail, in
-; seconds (30 minutes), a day at most.
+; seconds (30 minutes), a day at most. A code never outlives its password.
 token_ttl = 1800
 
 ; Rate limits, counted over the last hour. Addresses entered on the start

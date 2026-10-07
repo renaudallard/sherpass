@@ -111,9 +111,9 @@ function mail_sender(array $cfg, string $to, string $link): bool
  * @param array<string, mixed> $cfg
  */
 function mail_recipient(array $cfg, string $to, string $sender,
-    string $code): bool
+    string $code, int $ttl): bool
 {
-    $ttl = duration($cfg['token_ttl']);
+    $ttl = duration($ttl);
     $body = <<<TXT
         $sender has shared a password with you.
 

@@ -303,25 +303,25 @@ function do_cancel(PDO $db, int $now): void
 }
 
 /**
- * The encrypted sender, recipient tag and current code of secret $id,
- * false if it cannot be claimed any more.
+ * The encrypted sender, recipient tag, current code and expiry of secret
+ * $id, false if it cannot be claimed any more.
  *
  * @return array{sender: string, rcpt: string, reveal: ?string,
- *     reveal_expires: int|string|null}|false
+ *     reveal_expires: int|string|null, expires: int|string}|false
  */
 function secret_row(PDO $db, string $id, int $now): array|false
 {
-    return db_query($db, 'SELECT sender, rcpt, reveal, reveal_expires ' .
-        'FROM secret ' .
+    return db_query($db, 'SELECT sender, rcpt, reveal, reveal_expires, ' .
+        'expires FROM secret ' .
         'WHERE id = ? AND claimed IS NULL AND expires > ?',
         [$id, $now])->fetch();
 }
 
 /*
- * Return the keys derived from share key $s if its secret can still be
- * claimed.
+ * Return the keys derived from share key $s and the expiry of its
+ * secret, if it can still be claimed.
  *
- * @return array{string, string, string}|null
+ * @return array{string, string, string, int}|null
  */
 function secret_lookup(PDO $db, mixed $s, int $now): ?array
 {
@@ -330,7 +330,8 @@ function secret_lookup(PDO $db, mixed $s, int $now): ?array
         return null;
     }
     $keys = secret_keys($key);
-    return secret_row($db, $keys[0], $now) === false ? null : $keys;
+    $row = secret_row($db, $keys[0], $now);
+    return $row === false ? null : [...$keys, (int)$row['expires']];
 }
 
 function page_claim(PDO $db, int $now): void
@@ -355,7 +356,7 @@ function do_claim(array $cfg, PDO $db, int $now): void
         invalid();
         return;
     }
-    [$id, $enc, $tag] = $keys;
+    [$id, $enc, $tag, $expires] = $keys;
     $s = $_POST['s'];
     $email = email_normalize($_POST['email'] ?? null);
     if ($email === null) {
@@ -377,14 +378,23 @@ function do_claim(array $cfg, PDO $db, int $now): void
         too_many();
         return;
     }
-    respond(200, 'Check your mail', view_claim_sent($s, $cfg['token_ttl'],
+    /*
+     * A code never outlives its password. The time left is cut to whole
+     * minutes, which the page and the mail can tell as such.
+     */
+    $ttl = $cfg['token_ttl'];
+    $left = $expires - $now;
+    if ($left < $ttl) {
+        $ttl = $left < 60 ? $left : $left - $left % 60;
+    }
+    respond(200, 'Check your mail', view_claim_sent($s, $ttl,
         $cfg['recipient_limit'], $cfg['recipient_delay']));
     finish_response();
 
     $r = token_new();
     $name = 'secret:' . $id;
     $found = db_tx($db, function () use ($db, $now, $cfg, $id, $enc, $tag,
-        $email, $r, $name): ?array {
+        $email, $r, $name, $ttl): ?array {
         $row = secret_row($db, $id, $now);
         if ($row === false ||
             !hash_equals($row['rcpt'], rcpt_tag($email, $tag)) ||
@@ -399,14 +409,14 @@ function do_claim(array $cfg, PDO $db, int $now): void
             throw new RuntimeException("cannot decrypt sender of secret $id");
         }
         db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
-            'WHERE id = ?', [token_hash($r), $now + $cfg['token_ttl'], $id]);
+            'WHERE id = ?', [token_hash($r), $now + $ttl, $id]);
         return [$row, $sender, throttle_hit($db, $name, $now)];
     });
     if ($found === null) {
         return;
     }
     [$row, $sender, $hit] = $found;
-    if (!mail_recipient($cfg, $email, $sender, code_encode($r))) {
+    if (!mail_recipient($cfg, $email, $sender, code_encode($r), $ttl)) {
         /* No id: the relay's refusal often names the recipient. */
         error_log('sherpass: cannot send a code');
         /*
