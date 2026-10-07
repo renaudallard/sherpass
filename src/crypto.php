@@ -114,19 +114,24 @@ function secret_open(string $box, string $ad, string $enc): ?string
 }
 
 /*
- * The other values of a row are encrypted with the key of the password,
- * each under associated data naming it, so that none can be swapped.
+ * The addresses of a row are encrypted with the key of the password, each
+ * under associated data naming it, so that none can be swapped. They are
+ * padded with NUL, which an address never holds, to EMAIL_MAX from
+ * mail.php, so that the ciphertext does not tell their length. Those
+ * encrypted before the padding have none, which changes nothing here.
  */
-function field_seal(string $plain, string $id, string $name,
+function addr_seal(string $email, string $id, string $name,
     string $enc): string
 {
-    return secret_seal($plain, "$id:$name", $enc);
+    return secret_seal(str_pad($email, EMAIL_MAX, "\0"), "$id:$name",
+        $enc);
 }
 
-function field_open(string $box, string $id, string $name,
+function addr_open(string $box, string $id, string $name,
     string $enc): ?string
 {
-    return secret_open($box, "$id:$name", $enc);
+    $email = secret_open($box, "$id:$name", $enc);
+    return $email === null ? null : rtrim($email, "\0");
 }
 
 /*
@@ -138,7 +143,7 @@ function sender_open(string $box, string $id, string $enc): ?string
     if (str_contains($box, '@')) {
         return $box;
     }
-    return field_open($box, $id, 'sender', $enc);
+    return addr_open($box, $id, 'sender', $enc);
 }
 
 function rcpt_tag(string $email, string $tagkey): string

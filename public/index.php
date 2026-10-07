@@ -245,10 +245,10 @@ function do_compose(array $cfg, PDO $db, int $now): void
         db_query($db, 'INSERT INTO secret ' .
             '(id, sender, rcpt, box, expires, cancel, notify) ' .
             'VALUES (?, ?, ?, ?, ?, ?, ?)',
-            [$id, field_seal($sender, $id, 'sender', $enc),
+            [$id, addr_seal($sender, $id, 'sender', $enc),
             rcpt_tag($rcpt, $tag), secret_seal($secret, $id, $enc),
             $expires, token_hash($cancel),
-            $notify ? field_seal($rcpt, $id, 'notify', $enc) : null]);
+            $notify ? addr_seal($rcpt, $id, 'notify', $enc) : null]);
         return true;
     });
     if (!$ok) {
@@ -508,7 +508,7 @@ function do_reveal(array $cfg, PDO $db, int $now): void
     $sender = sender_open($sender, $id, $enc);
     /* Empty when the sender asked for no mail. */
     $rcpt = $notify === null ? '' :
-        field_open($notify, $id, 'notify', $enc);
+        addr_open($notify, $id, 'notify', $enc);
     $secret = $sender === null || $rcpt === null ? null :
         secret_open($box, $id, $enc);
     if ($secret === null) {

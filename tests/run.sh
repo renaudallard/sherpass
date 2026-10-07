@@ -479,6 +479,11 @@ case "$ROW" in
 esac
 grep -qF 'p<b>a' "$T/sherpass.db" && fail "password stored in clear"
 ok "database holds no password, its row no sender, recipient or key"
+# Hex of the nonce, the address padded to 254 bytes and the tag.
+ALEN=$((2 * (24 + 254 + 16)))
+[ "$(sql 'SELECT length(sender) FROM secret')" = "$ALEN" ] ||
+    fail "sender not padded"
+ok "sender padded before encryption"
 
 get "$BASE/?s=$S"
 expect 200 "claim page"
@@ -574,6 +579,22 @@ expect 200 "password with a sender stored in clear revealed"
 has 'walter@allard.it'
 ok "sender stored in clear still shown"
 
+# Those encrypted before the padding have none.
+sender wanda@allard.it
+share "$V" "$T/secret" xavier@example.org
+X=$(php -r 'require $argv[1] . "/src/crypto.php";
+    [$id, $enc] = secret_keys(token_decode($argv[2]));
+    echo secret_seal($argv[3], "$id:sender", $enc);' \
+    "$ROOT" "$S" wanda@allard.it)
+sql "UPDATE secret SET sender = '$X'" > /dev/null
+claim "$S" xavier@example.org
+grep -q '^wanda@allard.it has shared a password' "$(lastmail)" ||
+    fail "code mail lacks a sender encrypted without padding"
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 200 "password with a sender encrypted without padding revealed"
+has '<strong>wanda@allard.it</strong>'
+ok "sender encrypted without padding still shown"
+
 # A sender that does not decrypt mails no code and displays nothing.
 noerrors "before damaged senders"
 sender yvonne@allard.it
@@ -645,7 +666,9 @@ grep -q 'You will get a mail when it is displayed' "$(lastmail)" ||
 case "$(sql 'SELECT notify FROM secret')" in
 ''|*oliver*) fail "recipient to notify missing or in clear" ;;
 esac
-ok "recipient to notify stored encrypted"
+[ "$(sql 'SELECT length(notify) FROM secret')" = "$ALEN" ] ||
+    fail "recipient to notify not padded"
+ok "recipient to notify stored encrypted and padded"
 claim "$S" oliver@example.org
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 200 "password with a notification displayed"
