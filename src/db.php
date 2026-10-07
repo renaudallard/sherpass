@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS throttle (
     ts INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS throttle_name ON throttle (name, ts);
+CREATE INDEX IF NOT EXISTS throttle_ts ON throttle (ts);
 SQL;
 
 function db_open(string $path): PDO
