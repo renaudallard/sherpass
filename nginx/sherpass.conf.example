@@ -10,21 +10,21 @@ log_format sherpass '$remote_addr - $remote_user [$time_local] '
 server {
     listen 80;
     listen [::]:80;
-    server_name pass.allard.it;
+    server_name pass.example.com;
 
     access_log /var/log/nginx/sherpass.access.log sherpass;
 
-    return 301 https://pass.allard.it$request_uri;
+    return 301 https://pass.example.com$request_uri;
 }
 
 server {
     listen 443 ssl;
     listen [::]:443 ssl;
     http2 on;
-    server_name pass.allard.it;
+    server_name pass.example.com;
 
-    ssl_certificate /etc/letsencrypt/live/pass.allard.it/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/pass.allard.it/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/pass.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/pass.example.com/privkey.pem;
 
     access_log /var/log/nginx/sherpass.access.log sherpass;
 
