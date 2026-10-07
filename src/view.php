@@ -101,7 +101,9 @@ function view_start_sent(string $email, string $ttl): string
 
 /*
  * A textarea drops the first newline of its content, so one is always
- * emitted to keep a leading newline of the secret.
+ * emitted to keep a leading newline of the secret. The form is sent as
+ * multipart: PHP writes an urlencoded body of 16k or more, which a long
+ * password can make, to a temporary file, but not a multipart one.
  */
 function view_compose(string $v, string $sender, string $error = '',
     string $secret = '', string $rcpt = ''): string
@@ -115,7 +117,7 @@ function view_compose(string $v, string $sender, string $error = '',
     $emax = EMAIL_MAX;
     return <<<HTML
         $err<p>Sharing as <strong>$sender</strong>.</p>
-        <form method="post" action="./">
+        <form method="post" action="./" enctype="multipart/form-data">
         <input type="hidden" name="v" value="$v">
         <label for="secret">Password</label>
         <textarea id="secret" name="secret" maxlength="$max" required

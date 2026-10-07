@@ -203,7 +203,9 @@ Then run `nginx -t && systemctl reload nginx`.
 It only passes `/` to PHP, serves `style.css` and returns 404 for
 anything else. Its request body buffer is as large as the largest
 accepted body: nginx writes bigger bodies to a temporary file, and the
-compose form carries the password in clear.
+compose form carries the password in clear. PHP does the same with an
+urlencoded body of 16k or more, so the compose form is sent as
+multipart, which PHP reads without a temporary file.
 
 sherpass reads `sherpass.ini` from its top directory, next to `public/`
 and `src/`, unless the `SHERPASS_CONFIG` FastCGI parameter names another

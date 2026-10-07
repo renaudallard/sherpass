@@ -534,6 +534,20 @@ expect 200 "password of 4096 characters with a line break revealed"
 shown "$T/fullutf8" || fail "long password not displayed intact"
 ok "long password displayed intact"
 
+# The compose form is multipart, as browsers send it.
+sender ursula@allard.it
+get "$BASE/?v=$V"
+has 'enctype="multipart/form-data"'
+post "$BASE/" -F "v=$V" -F "secret=<$T/fullutf8" -F "rcpt=vera@example.org"
+expect 200 "multipart compose accepted"
+S=$(grep -o "$BASE/?s=[A-Za-z0-9_-]*" "$BODY") || fail "no share link"
+S=${S#*s=}
+claim "$S" vera@example.org
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 200 "password composed as multipart revealed"
+shown "$T/fullutf8" || fail "multipart password not displayed intact"
+ok "multipart password displayed intact"
+
 sender carol@allard.it
 share "$V" "$T/secret" dan@example.org
 claim "$S" dan@example.org
@@ -751,7 +765,8 @@ smtp_cafile = $T/smtp.crt" "does not offer STARTTLS" \
 DEAD=$((PORT + 9))
 IPN=$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'ip:127.0.0.1'")
 noerrors "before failing sender mails"
-webconfig "sender_limit = 1
+webconfig "ip_limit = 1000
+sender_limit = 1
 mail_transport = smtp
 smtp_host = localhost
 smtp_port = $DEAD
