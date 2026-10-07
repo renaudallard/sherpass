@@ -39,6 +39,15 @@ CREATE INDEX IF NOT EXISTS throttle_name ON throttle (name, ts);
 CREATE INDEX IF NOT EXISTS throttle_ts ON throttle (ts);
 SQL;
 
+/*
+ * Changes made to SCHEMA since its first release, which it keeps, applied
+ * in order. PRAGMA user_version counts those a database has.
+ */
+const MIGRATIONS = [
+    'ALTER TABLE secret ADD COLUMN cancel TEXT;
+    CREATE INDEX secret_cancel ON secret (cancel);',
+];
+
 function db_open(string $path): PDO
 {
     umask(0077);
@@ -49,7 +58,27 @@ function db_open(string $path): PDO
     ]);
     $db->exec('PRAGMA secure_delete = ON');
     $db->exec(SCHEMA);
+    db_migrate($db);
     return $db;
+}
+
+/*
+ * The version is read again under the write lock: another request may
+ * have migrated the database meanwhile.
+ */
+function db_migrate(PDO $db): void
+{
+    $n = count(MIGRATIONS);
+    if ((int)$db->query('PRAGMA user_version')->fetchColumn() >= $n) {
+        return;
+    }
+    db_tx($db, function () use ($db, $n): void {
+        $v = (int)$db->query('PRAGMA user_version')->fetchColumn();
+        for (; $v < $n; $v++) {
+            $db->exec(MIGRATIONS[$v]);
+        }
+        $db->exec("PRAGMA user_version = $n");
+    });
 }
 
 /**

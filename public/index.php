@@ -10,6 +10,8 @@
  * GET  /?s=          ask the recipient address, or the code
  * POST / s           mail a code if the address matches, ask the code
  * POST / s r         display the password, then delete it
+ * GET  /?c=          ask the sender to confirm deleting a password
+ * POST / c           delete it
  *
  * The code goes by mail and the share key only in the link given by the
  * sender, so displaying the password takes both.
@@ -48,6 +50,8 @@ function main(array $cfg, PDO $db, int $now): void
             do_reveal($db, $now);
         } elseif (isset($in['s'])) {
             do_claim($cfg, $db, $now);
+        } elseif (isset($in['c'])) {
+            do_cancel($db, $now);
         } else {
             do_start($cfg, $db, $now);
         }
@@ -57,6 +61,8 @@ function main(array $cfg, PDO $db, int $now): void
             page_compose($cfg, $db, $now);
         } elseif (isset($in['s'])) {
             page_claim($db, $now);
+        } elseif (isset($in['c'])) {
+            page_cancel($db, $now);
         } else {
             respond(200, 'Share a password', view_start());
         }
@@ -224,28 +230,68 @@ function do_compose(array $cfg, PDO $db, int $now): void
     }
 
     $key = token_new();
+    $cancel = token_new();
     [$id, $enc, $tag] = secret_keys($key);
     $expires = $now + $ttl;
     $ok = db_tx($db, function () use ($db, $now, $token, $id, $enc, $tag,
-        $sender, $rcpt, $secret, $expires): bool {
+        $sender, $rcpt, $secret, $expires, $cancel): bool {
         $st = db_query($db, 'DELETE FROM sender ' .
             'WHERE hash = ? AND expires > ?', [token_hash($token), $now]);
         if ($st->rowCount() !== 1) {
             return false;
         }
         db_query($db, 'INSERT INTO secret ' .
-            '(id, sender, rcpt, box, expires) VALUES (?, ?, ?, ?, ?)',
+            '(id, sender, rcpt, box, expires, cancel) ' .
+            'VALUES (?, ?, ?, ?, ?, ?)',
             [$id, sender_seal($sender, $id, $enc), rcpt_tag($rcpt, $tag),
-            secret_seal($secret, $id, $enc), $expires]);
+            secret_seal($secret, $id, $enc), $expires, token_hash($cancel)]);
         return true;
     });
     if (!$ok) {
         invalid();
         return;
     }
+    /* The password is shared either way, the page tells if this failed. */
+    $mailed = mail_cancel($cfg, $sender, $rcpt, utc($expires),
+        $cfg['base_url'] . '/?c=' . token_encode($cancel));
+    if (!$mailed) {
+        error_log("sherpass: cannot send mail to $sender");
+    }
     respond(200, 'Password shared', view_share(
         $cfg['base_url'] . '/?s=' . token_encode($key), $rcpt,
-        gmdate('Y-m-d H:i', $expires) . ' UTC'));
+        utc($expires), $mailed));
+}
+
+/*
+ * The link mailed to the sender only leads to this form, so that a mail
+ * scanner following it deletes nothing.
+ */
+function page_cancel(PDO $db, int $now): void
+{
+    $c = token_decode($_GET['c']);
+    $expires = $c === null ? false : db_query($db, 'SELECT expires ' .
+        'FROM secret WHERE cancel = ? AND claimed IS NULL AND expires > ?',
+        [token_hash($c), $now])->fetchColumn();
+    if ($expires === false) {
+        invalid();
+        return;
+    }
+    respond(200, 'Delete a password', view_cancel($_GET['c'],
+        utc((int)$expires)));
+}
+
+function do_cancel(PDO $db, int $now): void
+{
+    $c = token_decode($_POST['c']);
+    $n = $c === null ? 0 : db_query($db, 'DELETE FROM secret ' .
+        'WHERE cancel = ? AND claimed IS NULL AND expires > ?',
+        [token_hash($c), $now])->rowCount();
+    if ($n !== 1) {
+        invalid();
+        return;
+    }
+    respond(200, 'Password deleted', view_message('The password has been ' .
+        'deleted, its share link no longer works.'));
 }
 
 /**

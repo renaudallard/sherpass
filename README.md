@@ -42,6 +42,8 @@ gives nginx and php-fpm.
   after 5 minutes
 - **Verified sender** - only addresses in `allowed_domains` can share,
   after confirming the address with a mailed link
+- **Cancel** - the sender gets a mail with a link to delete the password
+  until it is displayed
 - **Verified recipient** - anyone can open a share link, but only the
   recipient mailbox receives the code that, entered on the share page,
   displays the password, and the page does not tell who the recipient is
@@ -68,8 +70,9 @@ gives nginx and php-fpm.
    in `allowed_domains`, a link is mailed to it.
 2. The link leads to a form where the sender enters the password, the
    recipient's email address and how long the password may wait.
-   Submitting it returns a share link. A sender link can be used for one
-   password only.
+   Submitting it returns a share link, and mails the sender a link to
+   delete the password before it is displayed. A sender link can be used
+   for one password only.
 3. The share link can be sent to the recipient by any means. Whoever
    opens it is asked for their email address. If it is the recipient's,
    a code is mailed to it. The page says the same thing either way, so
@@ -294,6 +297,9 @@ an error, and the log says which setting and why. The
 [commits](https://github.com/renaudallard/sherpass/commits/main) list
 what changed.
 
+A version that changes the database upgrades it on the first request,
+keeping its rows.
+
 ## Serving under a path
 
 To serve sherpass under a path of an existing site, say
@@ -440,11 +446,12 @@ or numbers are turned into booleans or integers and rejected.
 - **Code** - the recipient gets a code rather than a link. It only works
   together with the share key, which the sender hands over by other
   means, so a mailbox alone is not enough to display the password
-- **Tokens** - the sender token and the code are 256 bits of
-  randomness each, only their SHA-256 is stored, and each works once
+- **Tokens** - the sender token, the delete token and the code are 256
+  bits of randomness each, only their SHA-256 is stored, and each works
+  once
 - **Mail scanners** - they fetch the links they find in mail. Following
-  the sender link never consumes anything, it leads to a form, and the
-  code mail holds no link at all
+  the sender link or the delete link never consumes anything, each leads
+  to a form, and the code mail holds no link at all
 - **One display** - the secret is first marked as claimed, in a
   transaction that serializes concurrent requests, so only one of them
   can display it. The page is then handed to the web server with

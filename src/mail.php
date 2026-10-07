@@ -129,3 +129,25 @@ function mail_recipient(array $cfg, string $to, string $sender,
         TXT;
     return mail_send($cfg, $to, 'A password has been shared with you', $body);
 }
+
+/**
+ * @param array<string, mixed> $cfg
+ */
+function mail_cancel(array $cfg, string $to, string $rcpt, string $expires,
+    string $link): bool
+{
+    $body = <<<TXT
+        You have shared a password with $rcpt. It can be displayed once,
+        until $expires.
+
+        To delete it before it is displayed, open this link:
+
+        $link
+
+        It leads to a page with a button, nothing is deleted before you
+        press it. Once the password has been displayed or has expired, the
+        link no longer works.
+
+        TXT;
+    return mail_send($cfg, $to, 'You have shared a password', $body);
+}

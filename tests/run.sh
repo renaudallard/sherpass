@@ -455,6 +455,7 @@ expect 200 "sender token kept after input errors"
 share "$V" "$T/secret" " Bob@Example.org "
 ok "password shared"
 has 'bob@example.org'
+C0=$(grep -o "$BASE/?c=[A-Za-z0-9_-]*" "$(lastmail)") || fail "no cancel link"
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/secret" \
     --data-urlencode "rcpt=bob@example.org"
 expect 404 "sender token works only once"
@@ -545,6 +546,8 @@ post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 404 "reveal works only once"
 get "$BASE/?s=$S"
 expect 404 "share link dead after reveal"
+get "$C0"
+expect 404 "cancel link dead after reveal"
 
 # Passwords shared before the sender was encrypted hold it in clear.
 sender walter@allard.it
@@ -584,6 +587,54 @@ shown "$T/secret" && fail "password displayed with a damaged sender"
     fail "secret with a damaged sender kept"
 ok "nothing displayed for a damaged sender"
 : > "$T/php.log"
+
+# The sender can delete a password until it is displayed.
+sender walter@allard.it
+share "$V" "$T/secret" xavier@example.org
+has 'A mail with a link to delete'
+M=$(lastmail)
+grep -q '^To: walter@allard.it' "$M" || fail "cancel mail To"
+grep -q 'shared a password with xavier@example.org' "$M" ||
+    fail "cancel mail lacks the recipient"
+grep -qF "$S" "$M" && fail "share key in the cancel mail"
+[ "$(grep -c 'https\{0,1\}://' "$M")" = 1 ] ||
+    fail "cancel mail holds another URL"
+C=$(grep -o "$BASE/?c=[A-Za-z0-9_-]*" "$M") || fail "no cancel link"
+C=${C#*c=}
+ok "cancel link mailed to the sender"
+get "$BASE/?c=$C"
+expect 200 "cancel page"
+has 'name="c"'
+[ "$(sql 'SELECT COUNT(*) FROM secret')" = 1 ] ||
+    fail "cancel page deleted the password"
+ok "cancel page deletes nothing"
+get "$BASE/?c=$(rnd)"
+expect 404 "unknown cancel token rejected"
+post "$BASE/" --data-urlencode "c=$C"
+expect 200 "password deleted by its sender"
+[ "$(sql 'SELECT COUNT(*) FROM secret')" = 0 ] ||
+    fail "password kept after cancel"
+get "$BASE/?s=$S"
+expect 404 "share link dead after cancel"
+post "$BASE/" --data-urlencode "c=$C"
+expect 404 "cancel works only once"
+
+# A database made before the migrations gets them and keeps its rows.
+M=$(php -r 'require $argv[1] . "/src/db.php";
+    $db = new PDO("sqlite:" . $argv[2]);
+    $db->exec(SCHEMA);
+    $db->prepare("INSERT INTO secret (id, sender, rcpt, box, expires) " .
+        "VALUES (?, ?, ?, ?, ?)")->execute(["x", "s", "r", "b", 1]);
+    $db = db_open($argv[2]);
+    $db = db_open($argv[2]);
+    $cols = array_column($db->query("PRAGMA table_info(secret)")
+        ->fetchAll(), "name");
+    echo (int)$db->query("PRAGMA user_version")->fetchColumn() ===
+        count(MIGRATIONS) ? "v" : "-", in_array("cancel", $cols, true) ?
+        "c" : "-", $db->query("SELECT COUNT(*) FROM secret")->fetchColumn();
+    ' "$ROOT" "$T/old.db")
+[ "$M" = vc1 ] || fail "old database not migrated: $M"
+ok "old database migrated with its rows"
 
 # Concurrent reveals: exactly one may succeed.
 
@@ -890,6 +941,22 @@ expect 200 "claim answered while its code mail fails"
 : > "$T/php.log"
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R1"
 expect 200 "code delivered before a failed mail still works"
+
+smtpconfig "smtp_host = localhost
+smtp_port = $SMTP_PLAIN
+smtp_tls = off"
+sender tina@allard.it
+smtpconfig "smtp_host = localhost
+smtp_port = $DEAD
+smtp_tls = off"
+noerrors "before a failing cancel mail"
+share "$V" "$T/secret" uma@example.org
+has 'could not be sent'
+grep -qF 'cannot send mail to tina@allard.it' "$T/php.log" ||
+    fail "cancel mail did not fail"
+get "$BASE/?s=$S"
+expect 200 "password shared while its cancel mail fails"
+: > "$T/php.log"
 
 # A lone dot and lines starting with one must survive DATA.
 printf '.first\r\n.\r\nline\r\n..two\r\n' > "$T/dots"

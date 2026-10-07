@@ -29,6 +29,11 @@ function duration(int $s): string
     return $s . ' second' . ($s === 1 ? '' : 's');
 }
 
+function utc(int $t): string
+{
+    return gmdate('Y-m-d H:i', $t) . ' UTC';
+}
+
 /*
  * With $refresh, the browser replaces the page with the start page after
  * that many seconds.
@@ -166,19 +171,38 @@ function view_compose(string $v, string $sender, int $max_ttl, int $ttl,
         HTML;
 }
 
-function view_share(string $url, string $rcpt, string $expires): string
+function view_share(string $url, string $rcpt, string $expires,
+    bool $mailed): string
 {
     $url = h($url);
     $rcpt = h($rcpt);
     $expires = h($expires);
+    $cancel = $mailed ? '<p class="muted">A mail with a link to delete ' .
+        "the password before it is displayed has been sent to you.</p>\n" :
+        '<p class="error">The mail with a link to delete the password ' .
+        "could not be sent. The share link works all the same.</p>\n";
     return <<<HTML
         <p>Send this link to the recipient:</p>
         <pre class="box">$url</pre>
         <p>Anyone can open it, but only <strong>$rcpt</strong> can display
         the password, after entering the code mailed to that email address.
         The password can be displayed once and expires on $expires.</p>
-        <p class="muted">The link is not stored on the server. If you lose
-        it, share the password again.</p>
+        $cancel<p class="muted">The share link is not stored on the server.
+        If you lose it, share the password again.</p>
+        HTML;
+}
+
+function view_cancel(string $c, string $expires): string
+{
+    $c = h($c);
+    $expires = h($expires);
+    return <<<HTML
+        <p>This password has not been displayed yet. It expires on
+        $expires. Delete it to make its share link stop working.</p>
+        <form method="post" action="./">
+        <input type="hidden" name="c" value="$c">
+        <button type="submit">Delete the password</button>
+        </form>
         HTML;
 }
 
