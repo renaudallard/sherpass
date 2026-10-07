@@ -48,6 +48,29 @@ function token_hash(string $bin): string
     return hash('sha256', $bin);
 }
 
+/*
+ * The code mailed to the recipient is a token written in hex, which a
+ * double click selects whole, unlike base64url and its dashes. Spaces
+ * around it and capitals are accepted, as a copy may bring them.
+ */
+function code_encode(string $bin): string
+{
+    return bin2hex($bin);
+}
+
+function code_decode(mixed $v): ?string
+{
+    if (!is_string($v)) {
+        return null;
+    }
+    $v = strtolower(trim($v));
+    if (preg_match('/^[0-9a-f]{' . 2 * TOKEN_BYTES . '}$/D', $v) !== 1) {
+        return null;
+    }
+    $bin = hex2bin($v);
+    return $bin === false ? null : $bin;
+}
+
 /**
  * Derive the database id (hex), the encryption key and the recipient tag
  * key from the key of a secret.

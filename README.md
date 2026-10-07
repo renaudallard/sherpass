@@ -27,10 +27,10 @@
 ---
 
 Plain PHP with sodium and SQLite: no framework, no Composer, no
-JavaScript. The key that decrypts a password is never stored, it only
-lives in the share link, so the database alone reveals neither the
-password nor its recipient. It runs as is in the chroot OpenBSD gives
-nginx and php-fpm.
+JavaScript. The key that decrypts a password is never stored and never
+mailed, it only lives in the share link, so neither the database nor a
+mailbox alone reveals the password. It runs as is in the chroot OpenBSD
+gives nginx and php-fpm.
 
 ## Features
 
@@ -39,12 +39,13 @@ nginx and php-fpm.
 - **Verified sender** - only addresses in `allowed_domains` can share,
   after confirming the address with a mailed link
 - **Verified recipient** - anyone can open a share link, but only the
-  recipient mailbox receives the link that displays the password, and
-  the page does not tell who the recipient is
+  recipient mailbox receives the code that, entered on the share page,
+  displays the password, and the page does not tell who the recipient is
 - **Key out of the server** - the database holds XChaCha20-Poly1305
-  ciphertext and a keyed hash of the recipient, the key is in the link
-- **Mail scanners** - following a mailed link consumes nothing,
-  displaying the password takes a button press
+  ciphertext and a keyed hash of the recipient, the key is only in the
+  share link, never in a mail
+- **Mail scanners** - the code mail holds no link, and following the
+  sender link consumes nothing
 - **No JavaScript** - strict Content-Security-Policy, no external
   resources, nothing cached
 - **Mail** - through the local MTA, or over SMTP with TLS or STARTTLS,
@@ -66,16 +67,18 @@ nginx and php-fpm.
    can be used for one password only.
 3. The share link can be sent to the recipient by any means. Whoever
    opens it is asked for their address. If it is the recipient address,
-   a link is mailed to it. The page says the same thing either way, so
+   a code is mailed to it. The page says the same thing either way, so
    the share link alone does not reveal who the recipient is.
-4. The mailed link asks for a confirmation, then displays the password.
-   The password is deleted from the server right after the page has been
-   sent.
+4. The recipient enters the code on the share page, which displays the
+   password. The password is deleted from the server right after the
+   page has been sent. Displaying it thus takes both the share link and
+   the recipient mailbox.
 
-Links sent by mail are valid for `token_ttl` seconds, 30 minutes by
-default. An unclaimed password is deleted after `secret_ttl` seconds, 30
-days by default. Asking again for a recipient link replaces the previous
-one.
+The sender link and the code are valid for `token_ttl` seconds, 30
+minutes by default. An unclaimed password is deleted after `secret_ttl`
+seconds, 30 days by default. Asking again for a code replaces the
+previous one. The share page also has a field for a code received
+earlier.
 
 ## Install
 
@@ -216,17 +219,17 @@ not a way to ask for the default.
 
 | Key | Meaning |
 | --- | --- |
-| `base_url` | Public URL of the site, used to build the links sent by mail, at most 256 characters. Must use https, plain http is only accepted for localhost. |
+| `base_url` | Public URL of the site, used to build the sender link and the share link, at most 256 characters. Must use https, plain http is only accepted for localhost. |
 | `mail_from` | Sender address of every mail. |
 | `mail_from_name` | Display name of the sender, 1 to 64 printable ASCII characters without quotes or backslashes. Defaults to `Sherpass`. |
 | `allowed_domains[]` | Domain allowed to share passwords, one line per domain. Exact match, subdomains are not included. |
 | `db_path` | Absolute path of the SQLite database. Its directory must be writable by the PHP user and lie outside the web root. |
 | `secret_ttl` | Lifetime of an unclaimed password, in seconds, at most 31536000 (a year). Default 2592000 (30 days). |
-| `token_ttl` | Lifetime of the links sent by mail, in seconds, at most 86400 (a day). Default 1800 (30 minutes). |
+| `token_ttl` | Lifetime of the sender link and of the recipient code sent by mail, in seconds, at most 86400 (a day). Default 1800 (30 minutes). |
 | `ip_limit` | Requests that can send a mail, an address entered on the start page or on a share page, per client and per hour. A client is an IPv4 address or an IPv6 /64. Default 30. Raise it if many users share one address, behind NAT for instance. |
 | `sender_limit` | Sender mails per address per hour. Default 3. |
-| `recipient_limit` | Recipient mails per password per hour. Default 3. |
-| `recipient_delay` | Minimum delay between two recipient mails for the same password, in seconds, 0 to 3600. Default 60. |
+| `recipient_limit` | Codes mailed per password per hour. Default 3. |
+| `recipient_delay` | Minimum delay between two codes mailed for the same password, in seconds, 0 to 3600. Default 60. |
 | `mail_transport` | `sendmail` to hand mails to the local MTA through PHP `mail()`, `smtp` to talk to an SMTP server directly. Default `sendmail`. |
 | `smtp_host` | SMTP server name or IP address, mandatory with `smtp`. |
 | `smtp_tls` | `tls` for TLS from the start, `starttls` to upgrade a plain connection, `off` for a relay without TLS, only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `tls`. |
@@ -241,17 +244,21 @@ or numbers are turned into booleans or integers and rejected.
 
 ## Security
 
-- **Share key** - a random 256-bit key, never stored. The database id,
-  the encryption key and the key used to hash the recipient address are
-  derived from it. The password is encrypted with XChaCha20-Poly1305 and
-  the recipient address is only kept as a keyed BLAKE2b hash, so a copy
-  of the database, including its deleted pages, reveals neither the
-  password nor the recipient. SQLite `secure_delete` is enabled as well
-- **Tokens** - every other token is 256 bits of randomness, only its
-  SHA-256 is stored, and each one works once
+- **Share key** - a random 256-bit key, never stored and never mailed.
+  The database id, the encryption key and the key used to hash the
+  recipient address are derived from it. The password is encrypted with
+  XChaCha20-Poly1305 and the recipient address is only kept as a keyed
+  BLAKE2b hash, so a copy of the database, including its deleted pages,
+  reveals neither the password nor the recipient, even together with the
+  mails. SQLite `secure_delete` is enabled as well
+- **Code** - the recipient gets a code rather than a link. It only works
+  together with the share key, which the sender hands over by other
+  means, so a mailbox alone is not enough to display the password
+- **Tokens** - every token, the code included, is 256 bits of
+  randomness, only its SHA-256 is stored, and each one works once
 - **Mail scanners** - they fetch the links they find in mail. Following
-  a link never consumes anything: displaying the password requires
-  pressing a button, which sends a POST request
+  the sender link never consumes anything, it leads to a form, and the
+  code mail holds no link at all
 - **One display** - the secret is first marked as claimed, in a
   transaction that serializes concurrent requests, so only one of them
   can display it. The page is then handed to the web server with
@@ -328,15 +335,12 @@ docs/logo.svg                 logo
 
 ## Limitations
 
-- Someone who can read the recipient mailbox can display the password:
-  the reveal mail carries the share key as well, so the share link is
-  only needed when no reveal link is waiting there
+- Someone who has both the share link and access to the recipient
+  mailbox can display the password
 - A compromised server sees passwords as they are submitted and
   displayed
-- Until it is delivered, the reveal mail waits in the queue of a local
-  MTA with the share key in its link, and the MTA log names the
-  recipient. Those files and a copy of the database together reveal the
-  password
+- The recipient needs the share link at hand to enter the code: if the
+  page where the code was asked is closed, the share link opens it again
 - Without JavaScript, the display button cannot be disabled once
   pressed. A browser shows the answer to the last press, so a double
   click displays "already used" while the first press consumed the

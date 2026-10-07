@@ -145,14 +145,16 @@ function view_share(string $url, string $rcpt, string $expires): string
         HTML;
 }
 
-function view_claim(string $s, string $error = ''): string
+function view_claim(string $s, string $error = '',
+    string $code_error = ''): string
 {
     $err = view_error($error);
+    $code = view_code($s, $code_error);
     $s = h($s);
     $emax = EMAIL_MAX;
     return <<<HTML
         $err<p>A password is waiting for its recipient. Enter your address
-        to receive a link to display it.</p>
+        to receive a code that displays it.</p>
         <form method="post" action="./">
         <input type="hidden" name="s" value="$s">
         <label for="email">Your address</label>
@@ -160,6 +162,8 @@ function view_claim(string $s, string $error = ''): string
          autocomplete="email" required autofocus>
         <button type="submit">Continue</button>
         </form>
+        <h2>Received a code?</h2>
+        $code
         HTML;
 }
 
@@ -167,38 +171,45 @@ function view_claim(string $s, string $error = ''): string
  * Shown whether the address matched or not, so it has to explain why no
  * mail may come even for the right one.
  */
-function view_claim_sent(int $ttl, int $limit, int $delay): string
+function view_claim_sent(string $s, int $ttl, int $limit,
+    int $delay): string
 {
+    $code = view_code($s);
     $ttl = h(duration($ttl));
     $rate = $limit === 1 ? 'once' : "$limit times";
     $rate .= ' an hour' . ($delay > 0 ? ', ' . duration($delay) . ' apart' :
         '');
     $rate = h($rate);
     return <<<HTML
-        <p>If this address is the recipient of the password, a mail has
-        been sent to it, within the limits below. Open the link it
-        contains within $ttl.</p>
+        <p>If this address is the recipient of the password, a code has
+        been mailed to it, within the limits below. Enter it here within
+        $ttl.</p>
+        $code
         <p class="muted">No mail? Check the address and your spam folder.
-        A link is sent at most $rate, and each new one replaces the
-        previous one.</p>
+        A code is sent at most $rate, and each new one replaces the
+        previous one. If you leave this page, open the share link again to
+        enter the code.</p>
         HTML;
 }
 
-function view_reveal(string $s, string $r, string $sender): string
+/*
+ * Sending the code displays and deletes the password: a second press
+ * would get the answer for a used code, and the browser shows that one.
+ */
+function view_code(string $s, string $error = ''): string
 {
+    $err = view_error($error);
     $s = h($s);
-    $r = h($r);
-    $sender = h($sender);
     return <<<HTML
-        <p><strong>$sender</strong> has shared a password with you.</p>
-        <p>It can be displayed only once. It is deleted from the server
-        right after.</p>
-        <p class="error">Press the button only once and wait for the page.
-        A second press would only show that the link has been used, and
-        the password would be lost.</p>
         <form method="post" action="./">
         <input type="hidden" name="s" value="$s">
-        <input type="hidden" name="r" value="$r">
+        $err<label for="r">Code from the mail</label>
+        <input type="text" id="r" name="r" maxlength="200"
+         autocomplete="one-time-code" autocapitalize="off" spellcheck="false"
+         required>
+        <p class="error">Press the button only once and wait for the page.
+        A second press would only show that the code has been used, and
+        the password would be lost.</p>
         <button type="submit">Display the password</button>
         </form>
         HTML;

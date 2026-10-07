@@ -107,18 +107,20 @@ function mail_sender(array $cfg, string $to, string $link): bool
  * @param array<string, mixed> $cfg
  */
 function mail_recipient(array $cfg, string $to, string $sender,
-    string $link): bool
+    string $code): bool
 {
     $ttl = duration($cfg['token_ttl']);
     $body = <<<TXT
         $sender has shared a password with you.
 
-        To display it, open this link within $ttl:
+        To display it, enter this code within $ttl on the page where you
+        asked for it:
 
-        $link
+        $code
 
-        The password can be displayed only once. It is deleted from the
-        server right after.
+        If that page is closed, open the link $sender gave you again, it
+        has a field for the code. The password can be displayed only once.
+        It is deleted from the server right after.
 
         TXT;
     return mail_send($cfg, $to, 'A password has been shared with you', $body);

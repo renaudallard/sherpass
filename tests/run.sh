@@ -89,6 +89,11 @@ repeat() {
     php -r 'echo str_repeat($argv[1], (int)$argv[2]);' "$1" "$2"
 }
 
+# A valid code that matches nothing.
+rndcode() {
+    php -r 'echo bin2hex(random_bytes(32));'
+}
+
 # A valid token that matches nothing.
 rnd() {
     php -r 'echo sodium_bin2base64(random_bytes(32),
@@ -123,9 +128,7 @@ share() {
 claim() {
     post "$BASE/" --data-urlencode "s=$1" --data-urlencode "email=$2"
     [ "$STATUS" = 200 ] || fail "claim: status $STATUS"
-    R=$(grep -o "$BASE/?s=$1&r=[A-Za-z0-9_-]*" "$(lastmail)") ||
-        fail "no reveal link"
-    R=${R#*r=}
+    R=$(grep -o '^[0-9a-f]\{64\}' "$(lastmail)") || fail "no code in the mail"
 }
 
 # Write the configuration of the test server, extra settings in $1.
@@ -438,7 +441,8 @@ ok "database holds no password, recipient or key"
 
 get "$BASE/?s=$S"
 expect 200 "claim page"
-has 'name="s"'
+has 'name="email"'
+has 'name="r"'
 get "$BASE/?s=$(rnd)"
 expect 404 "unknown share key rejected"
 
@@ -452,11 +456,17 @@ ok "no mail to wrong recipient"
 claim "$S" "BOB@example.org"
 cmp -s "$BODY" "$T/wrong" || fail "answer differs for the right recipient"
 ok "same answer for right and wrong recipient"
+has 'name="r"'
+has 'Press the button only once'
+ok "code asked after the address"
 M=$(lastmail)
-grep -q '^To: bob@example.org' "$M" || fail "reveal mail To"
+grep -q '^To: bob@example.org' "$M" || fail "code mail To"
 grep -q '^alice@allard.it has shared a password' "$M" ||
-    fail "reveal mail lacks sender"
-ok "reveal mail sent to recipient"
+    fail "code mail lacks sender"
+ok "code mailed to recipient"
+grep -qF "$S" "$M" && fail "share key in the code mail"
+grep -qF "$BASE" "$M" && fail "link in the code mail"
+ok "code mail holds neither the share key nor a link"
 
 N=$(nmail)
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=bob@example.org"
@@ -464,22 +474,21 @@ expect 200 "repeated claim answered"
 [ "$(nmail)" = "$N" ] || fail "repeated claim not throttled"
 ok "repeated claim throttled"
 
-get "$BASE/?s=$S&r=$R"
-expect 200 "reveal confirmation page"
-has 'Display the password'
-has 'Press the button only once'
-has 'alice@allard.it'
-get "$BASE/?s=$S&r=$R"
-expect 200 "reveal link survives a GET"
-grep -qF 'p<b>a' "$BODY" && fail "password shown on GET"
-grep -qF 'p&lt;b&gt;a' "$BODY" && fail "password shown on GET"
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$(rndcode)"
+expect 400 "wrong code rejected"
+has 'This code is wrong or has expired'
+has 'name="r"'
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=not a code"
+expect 400 "malformed code rejected"
+[ "$(sql 'SELECT COUNT(*) FROM secret')" = 1 ] || fail "secret lost"
+ok "password kept after wrong codes"
+post "$BASE/" --data-urlencode "s=$(rnd)" --data-urlencode "r=$R"
+expect 404 "code with another share key rejected"
 
 post "$BASE/" --data-urlencode "s=$S" \
-    --data-urlencode "r=$(rnd)"
-expect 404 "wrong reveal token rejected"
-
-post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
-expect 200 "password revealed"
+    --data-urlencode "r=  $(echo "$R" | tr a-f A-F) "
+expect 200 "password revealed with a code in capitals and spaces"
+has 'alice@allard.it'
 shown "$T/secret" || fail "password not displayed escaped and intact"
 grep -qF 'p<b>a' "$BODY" && fail "password not escaped"
 tail -n 1 "$BODY" | grep -q '</html>' || fail "page incomplete"

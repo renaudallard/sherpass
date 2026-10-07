@@ -187,8 +187,8 @@ function config_loopback(string $host): bool
 }
 
 /*
- * The base URL is used to build every link sent by mail, so it must be
- * https. Plain http is only accepted for local testing.
+ * The base URL is used to build the sender and share links, so it must
+ * be https. Plain http is only accepted for local testing.
  */
 function config_base_url(mixed $v): string
 {

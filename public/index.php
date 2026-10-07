@@ -7,10 +7,12 @@
  * POST / email       mail a sender link (?v=)
  * GET  /?v=          ask the password and the recipient
  * POST / v           store the secret, show the share link (?s=)
- * GET  /?s=          ask the recipient address
- * POST / s           mail a reveal link (?s=&r=) if the address matches
- * GET  /?s=&r=       ask confirmation, mail scanners only fetch links
+ * GET  /?s=          ask the recipient address, or the code
+ * POST / s           mail a code if the address matches, ask the code
  * POST / s r         display the password, then delete it
+ *
+ * The code goes by mail and the share key only in the link given by the
+ * sender, so displaying the password takes both.
  */
 
 declare(strict_types=1);
@@ -42,8 +44,6 @@ function main(array $cfg, PDO $db, int $now): void
         $in = $_GET;
         if (isset($in['v'])) {
             page_compose($db, $now);
-        } elseif (isset($in['s'], $in['r'])) {
-            page_reveal($db, $now);
         } elseif (isset($in['s'])) {
             page_claim($db, $now);
         } else {
@@ -286,7 +286,7 @@ function do_claim(array $cfg, PDO $db, int $now): void
         too_many();
         return;
     }
-    respond(200, 'Check your mail', view_claim_sent($cfg['token_ttl'],
+    respond(200, 'Check your mail', view_claim_sent($s, $cfg['token_ttl'],
         $cfg['recipient_limit'], $cfg['recipient_delay']));
     finish_response();
 
@@ -310,22 +310,21 @@ function do_claim(array $cfg, PDO $db, int $now): void
     if ($sender === null) {
         return;
     }
-    $link = $cfg['base_url'] . '/?s=' . $s . '&r=' . token_encode($r);
-    if (!mail_recipient($cfg, $email, $sender, $link)) {
-        error_log("sherpass: cannot send the reveal mail of secret $id");
+    if (!mail_recipient($cfg, $email, $sender, code_encode($r))) {
+        error_log("sherpass: cannot send the code of secret $id");
     }
 }
 
 /*
  * Return the id, the encryption key, the sender and the encrypted secret
- * if share key $s and reveal token $r are valid.
+ * if share key $s and code $r are valid.
  *
  * @return array{string, string, string, string}|null
  */
 function reveal_lookup(PDO $db, mixed $s, mixed $r, int $now): ?array
 {
     $key = token_decode($s);
-    $token = token_decode($r);
+    $token = code_decode($r);
     if ($key === null || $token === null) {
         return null;
     }
@@ -339,21 +338,10 @@ function reveal_lookup(PDO $db, mixed $s, mixed $r, int $now): ?array
     return [$id, $enc, $row['sender'], $row['box']];
 }
 
-function page_reveal(PDO $db, int $now): void
-{
-    $found = reveal_lookup($db, $_GET['s'], $_GET['r'], $now);
-    if ($found === null) {
-        invalid();
-        return;
-    }
-    respond(200, 'Receive a password',
-        view_reveal($_GET['s'], $_GET['r'], $found[2]));
-}
-
 /*
- * The secret is claimed first so that the link works only once, even
- * for concurrent requests. It is deleted once the page has been handed
- * to the web server, and a client going away must not stop that.
+ * The secret is claimed first so that the code works only once, even for
+ * concurrent requests. It is deleted once the page has been handed to the
+ * web server, and a client going away must not stop that.
  */
 function do_reveal(PDO $db, int $now): void
 {
@@ -369,7 +357,13 @@ function do_reveal(PDO $db, int $now): void
         return $found;
     });
     if ($found === null) {
-        invalid();
+        /* A mistyped or expired code gets another try, a gone secret not. */
+        if (secret_lookup($db, $_POST['s'], $now) === null) {
+            invalid();
+            return;
+        }
+        respond(400, 'Receive a password', view_claim($_POST['s'], '',
+            'This code is wrong or has expired.'));
         return;
     }
     [$id, $enc, $sender, $box] = $found;
