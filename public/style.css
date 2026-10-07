@@ -90,6 +90,22 @@ pre.box {
     user-select: all;
 }
 
+/*
+ * The page loads the start page in its place after 300 seconds, which is
+ * SECRET_SHOWN in src/view.php. Hiding the password after the same time
+ * also covers browsers that block such refreshes, and a page brought back
+ * from the history.
+ */
+pre.secret {
+    animation: expire 0s 300s forwards;
+}
+
+@keyframes expire {
+    to {
+        visibility: hidden;
+    }
+}
+
 .error {
     color: var(--error);
     font-weight: 600;

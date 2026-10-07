@@ -428,7 +428,8 @@ function do_reveal(PDO $db, int $now): void
         db_query($db, 'DELETE FROM secret WHERE id = ?', [$id]);
         throw new RuntimeException("cannot decrypt secret $id");
     }
-    respond(200, 'Your password', view_secret($secret, $sender));
+    respond(200, 'Your password', view_secret($secret, $sender),
+        SECRET_SHOWN);
     finish_response();
     db_query($db, 'DELETE FROM secret WHERE id = ?', [$id]);
     sodium_memzero($secret);

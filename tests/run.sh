@@ -78,7 +78,7 @@ lastmail() {
 # True if the page displays the content of file $1, escaped and intact.
 shown() {
     php -r '$b = file_get_contents($argv[1]);
-        $s = "<pre class=\"box\">\n" . htmlspecialchars(
+        $s = "<pre class=\"box secret\">\n" . htmlspecialchars(
             file_get_contents($argv[2]),
             ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5, "UTF-8") . "</pre>";
         exit(str_contains($b, $s) ? 0 : 1);' "$BODY" "$1"
@@ -357,6 +357,7 @@ grep -qi '^cache-control: no-store' "$HEADERS" || fail "no no-store header"
 grep -qi '^referrer-policy: no-referrer' "$HEADERS" ||
     fail "no referrer policy"
 grep -qi '^x-powered-by' "$HEADERS" && fail "X-Powered-By sent"
+grep -q 'http-equiv="refresh"' "$BODY" && fail "start page refreshes"
 ok "security headers"
 
 post "$BASE/" --data-urlencode "email=nobody"
@@ -514,6 +515,12 @@ has 'alice@allard.it'
 shown "$T/secret" || fail "password not displayed escaped and intact"
 grep -qF 'p<b>a' "$BODY" && fail "password not escaped"
 tail -n 1 "$BODY" | grep -q '</html>' || fail "page incomplete"
+N=$(php -r 'require $argv[1] . "/src/view.php"; echo SECRET_SHOWN;' "$ROOT")
+has "<meta http-equiv=\"refresh\" content=\"$N;url=./\">"
+has 'class="box secret"'
+grep -q "animation: expire 0s ${N}s forwards" "$ROOT/public/style.css" ||
+    fail "style.css does not hide the password after $N seconds"
+ok "password leaves the screen after $N seconds"
 grep -qi '^cache-control: no-store' "$HEADERS" || fail "reveal cacheable"
 ok "password displayed escaped and intact"
 [ "$(sql 'SELECT COUNT(*) FROM secret')" = 0 ] || fail "secret not deleted"

@@ -38,7 +38,8 @@ gives nginx and php-fpm.
 ## Features
 
 - **One display** - the password is shown once, then deleted from the
-  server as soon as the page has been sent
+  server as soon as the page has been sent, and it leaves the screen
+  after 5 minutes
 - **Verified sender** - only addresses in `allowed_domains` can share,
   after confirming the address with a mailed link
 - **Verified recipient** - anyone can open a share link, but only the

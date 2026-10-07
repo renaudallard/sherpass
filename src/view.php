@@ -6,6 +6,12 @@
 
 declare(strict_types=1);
 
+/*
+ * Seconds a displayed password stays on screen. style.css hides it after
+ * the same time, keep both equal.
+ */
+const SECRET_SHOWN = 300;
+
 function h(string $s): string
 {
     return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML5,
@@ -23,7 +29,12 @@ function duration(int $s): string
     return $s . ' second' . ($s === 1 ? '' : 's');
 }
 
-function respond(int $status, string $title, string $body): void
+/*
+ * With $refresh, the browser replaces the page with the start page after
+ * that many seconds.
+ */
+function respond(int $status, string $title, string $body,
+    int $refresh = 0): void
 {
     http_response_code($status);
     header_remove('X-Powered-By');
@@ -36,13 +47,15 @@ function respond(int $status, string $title, string $body): void
     header('X-Robots-Tag: noindex, nofollow');
     header('Cache-Control: no-store');
     $title = h($title);
+    $meta = $refresh > 0 ?
+        "<meta http-equiv=\"refresh\" content=\"$refresh;url=./\">\n" : '';
     $page = <<<HTML
         <!doctype html>
         <html lang="en">
         <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>$title - Sherpass</title>
+        $meta<title>$title - Sherpass</title>
         <link rel="stylesheet" href="style.css">
         </head>
         <body>
@@ -225,12 +238,13 @@ function view_secret(string $secret, string $sender): string
 {
     $secret = h($secret);
     $sender = h($sender);
+    $shown = h(duration(SECRET_SHOWN));
     return <<<HTML
         <p>Password shared by <strong>$sender</strong>:</p>
-        <pre class="box">
+        <pre class="box secret">
         $secret</pre>
         <p>It is deleted from the server as soon as this page has been
-        sent and cannot be displayed again. Copy it before leaving this
-        page.</p>
+        sent and cannot be displayed again. Copy it now: it disappears
+        from this page after $shown.</p>
         HTML;
 }
