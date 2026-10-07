@@ -87,9 +87,12 @@ function mail_send(array $cfg, string $to, string $subject,
 function mail_sender(array $cfg, string $to, string $link): bool
 {
     $ttl = duration($cfg['token_ttl']);
+    /*
+     * The link must be the only URL: mail clients make links of URLs, and
+     * once Safe Links wraps them all, another one looks just like it.
+     */
     $body = <<<TXT
-        A request to share a password from $to was made on
-        {$cfg['base_url']}
+        A request to share a password from $to was made.
 
         To continue, open this link within $ttl:
 

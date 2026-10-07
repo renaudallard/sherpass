@@ -392,6 +392,8 @@ grep -q '^Auto-Submitted: auto-generated' "$M" || fail "mail Auto-Submitted"
 php -r 'exit(preg_match("/(?<!\r)\n/", file_get_contents($argv[1])));' "$M" ||
     fail "bare LF in mail"
 ok "sender mail headers and line endings"
+[ "$(grep -c 'https\{0,1\}://' "$M")" = 1 ] || fail "sender mail holds another URL"
+ok "sender mail holds its link as only URL"
 
 get "$BASE/?v=AAAA"
 expect 404 "malformed sender token rejected"
