@@ -5,15 +5,15 @@
 
 ; Public URL of the site, used to build the sender and share links. Must be
 ; https, plain http is only accepted for localhost.
-base_url = "https://pass.allard.it"
+base_url = "https://pass.example.com"
 
 ; Sender of every mail.
-mail_from = "sherpass@allard.it"
+mail_from = "sherpass@example.com"
 mail_from_name = "Sherpass"
 
 ; Domains whose addresses may share a password. Exact match, subdomains
 ; are not included. Repeat the line for each domain.
-allowed_domains[] = "allard.it"
+allowed_domains[] = "example.com"
 
 ; SQLite database, absolute path. Its directory must be writable by the
 ; PHP user and lie outside the web root. In a chroot, the path inside it:
@@ -61,7 +61,7 @@ recipient_delay = 60
 
 ; Credentials, only ever sent over TLS. Keep them between single quotes,
 ; inside double quotes ${...} is expanded.
-;smtp_user = 'sherpass@allard.it'
+;smtp_user = 'sherpass@example.com'
 ;smtp_password = 'secret'
 
 ; CA certificates to verify the server with, for a private CA. The
