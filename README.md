@@ -5,6 +5,9 @@
 <h1 align="center">sherpass</h1>
 
 <p align="center">
+  <a href="https://github.com/renaudallard/sherpass/actions/workflows/tests.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/renaudallard/sherpass/tests.yml?style=flat-square&label=tests" alt="Tests"/>
+  </a>
   <img src="https://img.shields.io/badge/PHP-8.0%2B-777BB4?logo=php&logoColor=white&style=flat-square" alt="PHP 8.0 or newer"/>
   <img src="https://img.shields.io/badge/platforms-OpenBSD%20%7C%20Debian-green?style=flat-square" alt="OpenBSD, Debian"/>
   <img src="https://img.shields.io/badge/nginx-1.25.1%2B-009639?logo=nginx&logoColor=white&style=flat-square" alt="nginx 1.25.1 or newer"/>
@@ -414,6 +417,9 @@ against `tests/smtpd.php` listening on the four following ports, with
 TLS, STARTTLS, without TLS and with long credentials, using a
 certificate made for the run. Everything is written to `tmp/test`.
 
+`.github/workflows/tests.yml` runs it on every push, in a Debian trixie
+container with its PHP 8.4.
+
 ## Layout
 
 ```
@@ -431,6 +437,7 @@ tests/run.sh                  tests
 tests/sendmail.sh             sendmail stand-in used by the tests
 tests/smtpd.php               SMTP server used by the tests
 docs/logo.svg                 logo
+.github/workflows/tests.yml   tests on every push
 ```
 
 ## Limitations
