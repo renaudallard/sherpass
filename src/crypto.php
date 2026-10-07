@@ -6,7 +6,8 @@
  * Every token is 32 random bytes, sent as unpadded base64url and stored
  * only as its SHA-256. The key of a secret is never stored: the lookup
  * id, the encryption key and the recipient tag are all derived from it,
- * so the database alone reveals neither the password nor the recipient.
+ * so the row of a secret reveals neither the password, its sender nor
+ * its recipient.
  */
 
 declare(strict_types=1);
@@ -90,17 +91,17 @@ function secret_keys(string $key): array
 }
 
 /*
- * Encrypt $plain, bound to its row by using $id as associated data.
- * Returns nonce and ciphertext as hex.
+ * Encrypt $plain with $ad as associated data, which binds it to where it
+ * is stored. Returns nonce and ciphertext as hex.
  */
-function secret_seal(string $plain, string $id, string $enc): string
+function secret_seal(string $plain, string $ad, string $enc): string
 {
     $nonce = random_bytes(SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES);
     return bin2hex($nonce . sodium_crypto_aead_xchacha20poly1305_ietf_encrypt(
-        $plain, $id, $nonce, $enc));
+        $plain, $ad, $nonce, $enc));
 }
 
-function secret_open(string $box, string $id, string $enc): ?string
+function secret_open(string $box, string $ad, string $enc): ?string
 {
     $bin = hex2bin($box);
     $n = SODIUM_CRYPTO_AEAD_XCHACHA20POLY1305_IETF_NPUBBYTES;
@@ -108,8 +109,29 @@ function secret_open(string $box, string $id, string $enc): ?string
         return null;
     }
     $plain = sodium_crypto_aead_xchacha20poly1305_ietf_decrypt(
-        substr($bin, $n), $id, substr($bin, 0, $n), $enc);
+        substr($bin, $n), $ad, substr($bin, 0, $n), $enc);
     return $plain === false ? null : $plain;
+}
+
+/*
+ * The sender address is encrypted with the key of the password, under
+ * associated data of its own so that the two cannot be swapped.
+ */
+function sender_seal(string $email, string $id, string $enc): string
+{
+    return secret_seal($email, "$id:sender", $enc);
+}
+
+/*
+ * Rows shared before the sender was encrypted hold it in clear, which an
+ * address tells apart from hex by its @.
+ */
+function sender_open(string $box, string $id, string $enc): ?string
+{
+    if (str_contains($box, '@')) {
+        return $box;
+    }
+    return secret_open($box, "$id:sender", $enc);
 }
 
 function rcpt_tag(string $email, string $tagkey): string

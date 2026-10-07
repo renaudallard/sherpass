@@ -106,6 +106,13 @@ sql() {
             echo implode("|", $r), "\n";' "$T/sherpass.db" "$1"
 }
 
+# Change the first hex digit of the stored sender, so that it no longer
+# decrypts.
+damage_sender() {
+    sql "UPDATE secret SET sender = CASE substr(sender, 1, 1)
+        WHEN '0' THEN '1' ELSE '0' END || substr(sender, 2)" > /dev/null
+}
+
 # Run a sender verification for $1, set V to the sender token.
 sender() {
     post "$BASE/" --data-urlencode "email=$1"
@@ -447,14 +454,10 @@ expect 404 "sender token works only once"
 ROW=$(sql 'SELECT sender, rcpt, box, reveal FROM secret')
 [ "$(sql 'SELECT COUNT(*) FROM secret')" = 1 ] || fail "secret row count"
 case "$ROW" in
-alice@allard.it\|*) ;;
-*) fail "sender not stored" ;;
-esac
-case "$ROW" in
-*bob*|*"$S"*) fail "recipient or key stored in clear" ;;
+*alice*|*bob*|*"$S"*) fail "sender, recipient or key stored in clear" ;;
 esac
 grep -qF 'p<b>a' "$T/sherpass.db" && fail "password stored in clear"
-ok "database holds no password, recipient or key"
+ok "database holds no password, its row no sender, recipient or key"
 
 get "$BASE/?s=$S"
 expect 200 "claim page"
@@ -530,6 +533,45 @@ post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 404 "reveal works only once"
 get "$BASE/?s=$S"
 expect 404 "share link dead after reveal"
+
+# Passwords shared before the sender was encrypted hold it in clear.
+sender walter@allard.it
+share "$V" "$T/secret" xavier@example.org
+sql "UPDATE secret SET sender = 'walter@allard.it'" > /dev/null
+claim "$S" xavier@example.org
+grep -q '^walter@allard.it has shared a password' "$(lastmail)" ||
+    fail "code mail lacks a sender stored in clear"
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 200 "password with a sender stored in clear revealed"
+has 'walter@allard.it'
+ok "sender stored in clear still shown"
+
+# A sender that does not decrypt mails no code and displays nothing.
+noerrors "before damaged senders"
+sender yvonne@allard.it
+share "$V" "$T/secret" zoe@example.org
+damage_sender
+N=$(nmail)
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=zoe@example.org"
+expect 200 "claim with a damaged sender answered"
+[ "$(nmail)" = "$N" ] || fail "code mailed for a damaged sender"
+[ "$(sql 'SELECT reveal IS NULL FROM secret')" = 1 ] ||
+    fail "code kept for a damaged sender"
+grep -qF 'cannot decrypt sender of secret' "$T/php.log" ||
+    fail "damaged sender not logged at claim"
+ok "no code for a damaged sender"
+sql 'DELETE FROM secret' > /dev/null
+sender yvonne@allard.it
+share "$V" "$T/secret" zoe@example.org
+claim "$S" zoe@example.org
+damage_sender
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 500 "reveal with a damaged sender refused"
+shown "$T/secret" && fail "password displayed with a damaged sender"
+[ "$(sql 'SELECT COUNT(*) FROM secret')" = 0 ] ||
+    fail "secret with a damaged sender kept"
+ok "nothing displayed for a damaged sender"
+: > "$T/php.log"
 
 # Concurrent reveals: exactly one may succeed.
 

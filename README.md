@@ -45,9 +45,9 @@ gives nginx and php-fpm.
 - **Verified recipient** - anyone can open a share link, but only the
   recipient mailbox receives the code that, entered on the share page,
   displays the password, and the page does not tell who the recipient is
-- **Key out of the server** - the database holds XChaCha20-Poly1305
-  ciphertext and a keyed hash of the recipient, the key is only in the
-  share link, never in a mail
+- **Key out of the server** - the database holds the password and its
+  sender as XChaCha20-Poly1305 ciphertext and a keyed hash of the
+  recipient, the key is only in the share link, never in a mail
 - **Mail scanners** - the code mail holds no link, and following the
   sender link consumes nothing
 - **No JavaScript** - strict Content-Security-Policy, no external
@@ -427,12 +427,14 @@ or numbers are turned into booleans or integers and rejected.
 
 - **Share key** - a random 256-bit key, never stored and never mailed.
   The database id, the encryption key and the key used to hash the
-  recipient address are derived from it. The password is encrypted with
-  XChaCha20-Poly1305 and the recipient address is only kept as a keyed
-  BLAKE2b hash, so a copy of the database, including its deleted pages,
-  reveals neither the password nor the recipient, and even with the
-  mails sherpass sends, the password stays out of reach. SQLite
-  `secure_delete` is enabled as well
+  recipient address are derived from it. The password and the sender
+  address are encrypted with XChaCha20-Poly1305 and the recipient
+  address is only kept as a keyed BLAKE2b hash, so a copy of the
+  database, including its deleted pages, reveals neither the password
+  nor its recipient, and its sender only through the short lived rows
+  listed under [Limitations](#limitations). Even with the mails sherpass
+  sends, the password stays out of reach. SQLite `secure_delete` is
+  enabled as well
 - **Code** - the recipient gets a code rather than a link. It only works
   together with the share key, which the sender hands over by other
   means, so a mailbox alone is not enough to display the password
@@ -547,9 +549,10 @@ docs/logo.svg                 logo
   worker busy for a moment, which can only show when no other worker is
   free
 - Passwords are limited to 4096 characters
-- For an hour, the rate limit counts keep sender addresses and client
-  addresses in the database, the latter next to the share links they
-  claimed
+- A sender address stays in the database while its sender link is
+  valid, and in the rate limit counts for an hour, as do client
+  addresses. Their times can link them to the passwords shared or
+  claimed then
 
 ## License
 

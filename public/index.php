@@ -222,7 +222,7 @@ function do_compose(array $cfg, PDO $db, int $now): void
         }
         db_query($db, 'INSERT INTO secret ' .
             '(id, sender, rcpt, box, expires) VALUES (?, ?, ?, ?, ?)',
-            [$id, $sender, rcpt_tag($rcpt, $tag),
+            [$id, sender_seal($sender, $id, $enc), rcpt_tag($rcpt, $tag),
             secret_seal($secret, $id, $enc), $expires]);
         return true;
     });
@@ -236,8 +236,8 @@ function do_compose(array $cfg, PDO $db, int $now): void
 }
 
 /**
- * The sender, recipient tag and current code of secret $id, false if it
- * cannot be claimed any more.
+ * The encrypted sender, recipient tag and current code of secret $id,
+ * false if it cannot be claimed any more.
  *
  * @return array{sender: string, rcpt: string, reveal: ?string,
  *     reveal_expires: int|string|null}|false
@@ -288,7 +288,7 @@ function do_claim(array $cfg, PDO $db, int $now): void
         invalid();
         return;
     }
-    [$id, , $tag] = $keys;
+    [$id, $enc, $tag] = $keys;
     $s = $_POST['s'];
     $email = email_normalize($_POST['email'] ?? null);
     if ($email === null) {
@@ -316,8 +316,8 @@ function do_claim(array $cfg, PDO $db, int $now): void
 
     $r = token_new();
     $name = 'secret:' . $id;
-    $found = db_tx($db, function () use ($db, $now, $cfg, $id, $tag, $email,
-        $r, $name): ?array {
+    $found = db_tx($db, function () use ($db, $now, $cfg, $id, $enc, $tag,
+        $email, $r, $name): ?array {
         $row = secret_row($db, $id, $now);
         if ($row === false ||
             !hash_equals($row['rcpt'], rcpt_tag($email, $tag)) ||
@@ -327,15 +327,19 @@ function do_claim(array $cfg, PDO $db, int $now): void
             claim_pad($db, $id, $now);
             return null;
         }
+        $sender = sender_open($row['sender'], $id, $enc);
+        if ($sender === null) {
+            throw new RuntimeException("cannot decrypt sender of secret $id");
+        }
         db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
             'WHERE id = ?', [token_hash($r), $now + $cfg['token_ttl'], $id]);
-        return [$row, throttle_hit($db, $name, $now)];
+        return [$row, $sender, throttle_hit($db, $name, $now)];
     });
     if ($found === null) {
         return;
     }
-    [$row, $hit] = $found;
-    if (!mail_recipient($cfg, $email, $row['sender'], code_encode($r))) {
+    [$row, $sender, $hit] = $found;
+    if (!mail_recipient($cfg, $email, $sender, code_encode($r))) {
         /* No id: the relay's refusal often names the recipient. */
         error_log('sherpass: cannot send a code');
         /*
@@ -372,7 +376,7 @@ function claim_pad(PDO $db, string $id, int $now): void
 }
 
 /*
- * Return the id, the encryption key, the sender and the encrypted secret
+ * Return the id, the encryption key, the encrypted sender and secret
  * if share key $s and code $r are valid.
  *
  * @return array{string, string, string, string}|null
@@ -423,7 +427,8 @@ function do_reveal(PDO $db, int $now): void
         return;
     }
     [$id, $enc, $sender, $box] = $found;
-    $secret = secret_open($box, $id, $enc);
+    $sender = sender_open($sender, $id, $enc);
+    $secret = $sender === null ? null : secret_open($box, $id, $enc);
     if ($secret === null) {
         db_query($db, 'DELETE FROM secret WHERE id = ?', [$id]);
         throw new RuntimeException("cannot decrypt secret $id");
