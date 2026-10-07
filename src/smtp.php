@@ -10,11 +10,31 @@
 
 declare(strict_types=1);
 
+/*
+ * Seconds for the whole dialogue. PHP bounds the connection and each TLS
+ * handshake by the same value on its own.
+ */
 const SMTP_TIMEOUT = 30;
 const SMTP_CRYPTO = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT |
     STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
 const SMTP_LINE_MAX = 1024;
 const SMTP_LINES_MAX = 100;
+
+/*
+ * A connection: the stream, what was read but not used yet and the time
+ * by which the dialogue must be over.
+ */
+final class SmtpConn
+{
+    public string $buf = '';
+
+    /**
+     * @param resource $fp
+     */
+    public function __construct(public $fp, public float $end)
+    {
+    }
+}
 
 /**
  * Deliver $msg, a complete message with CRLF line endings, from $from to
@@ -55,74 +75,73 @@ function smtp_send(array $cfg, string $from, string $to, string $msg): void
         throw smtp_error("cannot connect to $host", $errors);
     }
     try {
-        stream_set_timeout($fp, SMTP_TIMEOUT);
-        smtp_session($fp, $cfg, $from, $to, $msg);
+        smtp_session(new SmtpConn($fp, microtime(true) + SMTP_TIMEOUT),
+            $cfg, $from, $to, $msg);
     } finally {
         fclose($fp);
     }
 }
 
 /**
- * @param resource $fp
  * @param array{base_url: string, smtp_tls: string, smtp_user: string,
  *     smtp_password: string} $cfg
  */
-function smtp_session($fp, array $cfg, string $from, string $to,
+function smtp_session(SmtpConn $c, array $cfg, string $from, string $to,
     string $msg): void
 {
     $helo = smtp_helo($cfg['base_url']);
-    smtp_read($fp, 'greeting', [220]);
-    $ext = smtp_cmd($fp, "EHLO $helo", 'EHLO', [250]);
+    smtp_read($c, 'greeting', [220]);
+    $ext = smtp_cmd($c, "EHLO $helo", 'EHLO', [250]);
 
     if ($cfg['smtp_tls'] === 'starttls') {
         if (!in_array('STARTTLS', smtp_keywords($ext), true)) {
             throw new RuntimeException('smtp: server does not offer ' .
                 'STARTTLS');
         }
-        smtp_cmd($fp, 'STARTTLS', 'STARTTLS', [220]);
+        smtp_cmd($c, 'STARTTLS', 'STARTTLS', [220]);
         /*
          * Anything already buffered was sent in clear and must not be
          * taken as coming from the TLS session.
          */
-        if (stream_get_meta_data($fp)['unread_bytes'] !== 0) {
+        if ($c->buf !== '' ||
+            stream_get_meta_data($c->fp)['unread_bytes'] !== 0) {
             throw new RuntimeException('smtp: data sent before TLS ' .
                 'negotiation');
         }
         $errors = [];
-        if (smtp_warnings($errors, fn() => stream_socket_enable_crypto($fp,
-            true, SMTP_CRYPTO)) !== true) {
+        if (smtp_warnings($errors, fn() => stream_socket_enable_crypto(
+            $c->fp, true, SMTP_CRYPTO)) !== true) {
             throw smtp_error('TLS negotiation failed', $errors);
         }
-        $ext = smtp_cmd($fp, "EHLO $helo", 'EHLO', [250]);
+        $ext = smtp_cmd($c, "EHLO $helo", 'EHLO', [250]);
     }
 
     if ($cfg['smtp_user'] !== '') {
-        smtp_auth($fp, $ext, $cfg['smtp_user'], $cfg['smtp_password']);
+        smtp_auth($c, $ext, $cfg['smtp_user'], $cfg['smtp_password']);
     }
-    smtp_cmd($fp, "MAIL FROM:<$from>", 'MAIL FROM', [250]);
-    smtp_cmd($fp, "RCPT TO:<$to>", 'RCPT TO', [250, 251]);
-    smtp_cmd($fp, 'DATA', 'DATA', [354]);
+    smtp_cmd($c, "MAIL FROM:<$from>", 'MAIL FROM', [250]);
+    smtp_cmd($c, "RCPT TO:<$to>", 'RCPT TO', [250, 251]);
+    smtp_cmd($c, 'DATA', 'DATA', [354]);
     if (!str_ends_with($msg, "\r\n")) {
         $msg .= "\r\n";
     }
     if (str_starts_with($msg, '.')) {
         $msg = '.' . $msg;
     }
-    smtp_write($fp, str_replace("\r\n.", "\r\n..", $msg) . ".\r\n");
-    smtp_read($fp, 'message', [250]);
+    smtp_write($c, str_replace("\r\n.", "\r\n..", $msg) . ".\r\n");
+    smtp_read($c, 'message', [250]);
 
     /* The message is accepted, a failing QUIT does not matter. */
     try {
-        smtp_cmd($fp, 'QUIT', 'QUIT', [221]);
+        smtp_cmd($c, 'QUIT', 'QUIT', [221]);
     } catch (RuntimeException) {
     }
 }
 
 /**
- * @param resource $fp
  * @param list<string> $ext
  */
-function smtp_auth($fp, array $ext, string $user, string $pass): void
+function smtp_auth(SmtpConn $c, array $ext, string $user, string $pass): void
 {
     $mechs = [];
     foreach (array_slice($ext, 1) as $line) {
@@ -132,12 +151,12 @@ function smtp_auth($fp, array $ext, string $user, string $pass): void
         }
     }
     if (in_array('PLAIN', $mechs, true)) {
-        smtp_cmd($fp, 'AUTH PLAIN ' . base64_encode("\0$user\0$pass"),
+        smtp_cmd($c, 'AUTH PLAIN ' . base64_encode("\0$user\0$pass"),
             'AUTH', [235]);
     } elseif (in_array('LOGIN', $mechs, true)) {
-        smtp_cmd($fp, 'AUTH LOGIN', 'AUTH', [334]);
-        smtp_cmd($fp, base64_encode($user), 'AUTH', [334]);
-        smtp_cmd($fp, base64_encode($pass), 'AUTH', [235]);
+        smtp_cmd($c, 'AUTH LOGIN', 'AUTH', [334]);
+        smtp_cmd($c, base64_encode($user), 'AUTH', [334]);
+        smtp_cmd($c, base64_encode($pass), 'AUTH', [235]);
     } else {
         throw new RuntimeException('smtp: server offers neither AUTH ' .
             'PLAIN nor AUTH LOGIN');
@@ -148,33 +167,27 @@ function smtp_auth($fp, array $ext, string $user, string $pass): void
  * Send $line and read the reply. $what names the step in errors, so
  * that credentials never end up in a log.
  *
- * @param resource $fp
  * @param list<int> $codes
  * @return list<string>
  */
-function smtp_cmd($fp, string $line, string $what, array $codes): array
+function smtp_cmd(SmtpConn $c, string $line, string $what,
+    array $codes): array
 {
-    smtp_write($fp, "$line\r\n");
-    return smtp_read($fp, $what, $codes);
+    smtp_write($c, "$line\r\n");
+    return smtp_read($c, $what, $codes);
 }
 
 /**
  * Read a possibly multiline reply, return its text lines.
  *
- * @param resource $fp
  * @param list<int> $codes
  * @return list<string>
  */
-function smtp_read($fp, string $what, array $codes): array
+function smtp_read(SmtpConn $c, string $what, array $codes): array
 {
     $lines = [];
     do {
-        $line = @fgets($fp, SMTP_LINE_MAX);
-        if ($line === false) {
-            $why = stream_get_meta_data($fp)['timed_out'] ? 'timeout' :
-                'connection closed';
-            throw new RuntimeException("smtp: $why waiting for $what reply");
-        }
+        $line = smtp_line($c, $what);
         if (preg_match('/^(\d{3})(?:([ -])([^\r\n]*))?\r?\n$/', $line,
             $m) !== 1) {
             throw new RuntimeException("smtp: malformed $what reply");
@@ -193,18 +206,52 @@ function smtp_read($fp, string $what, array $codes): array
     return $lines;
 }
 
-/**
- * @param resource $fp
+/*
+ * Read one line. On a socket fread() returns after a single read, so the
+ * deadline holds however slowly the server sends.
  */
-function smtp_write($fp, string $data): void
+function smtp_line(SmtpConn $c, string $what): string
+{
+    while (($i = strpos($c->buf, "\n")) === false) {
+        if (strlen($c->buf) >= SMTP_LINE_MAX) {
+            throw new RuntimeException("smtp: $what reply line too long");
+        }
+        smtp_deadline($c, "waiting for $what reply");
+        $data = @fread($c->fp, 8192);
+        if ($data === false || $data === '') {
+            $why = stream_get_meta_data($c->fp)['timed_out'] ? 'timeout' :
+                'connection closed';
+            throw new RuntimeException("smtp: $why waiting for $what reply");
+        }
+        $c->buf .= $data;
+    }
+    $line = substr($c->buf, 0, $i + 1);
+    $c->buf = substr($c->buf, $i + 1);
+    return $line;
+}
+
+function smtp_write(SmtpConn $c, string $data): void
 {
     while ($data !== '') {
-        $n = @fwrite($fp, $data);
+        smtp_deadline($c, 'writing');
+        $n = @fwrite($c->fp, $data);
         if ($n === false || $n === 0) {
             throw new RuntimeException('smtp: write failed');
         }
         $data = substr($data, $n);
     }
+}
+
+/*
+ * Give the next stream operation only the time left in the dialogue.
+ */
+function smtp_deadline(SmtpConn $c, string $what): void
+{
+    $left = $c->end - microtime(true);
+    if ($left <= 0) {
+        throw new RuntimeException("smtp: timeout $what");
+    }
+    stream_set_timeout($c->fp, (int)$left, (int)(fmod($left, 1) * 1e6));
 }
 
 /**

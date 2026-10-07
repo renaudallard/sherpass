@@ -64,7 +64,9 @@ one.
   which is then mandatory: a server that does not offer it is not
   used. Certificates are verified against the system CAs or
   `smtp_cafile`, and the check can only be turned off for a server on
-  the loopback interface. Credentials are never sent without TLS.
+  the loopback interface. Credentials are never sent without TLS. The
+  whole SMTP dialogue must end within 30 seconds, however slowly the
+  server answers.
 * Expired rows are purged at the start of each request, no cron job is
   needed.
 
