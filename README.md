@@ -342,7 +342,9 @@ not a way to ask for the default.
 | `smtp_cafile` | Absolute path of a file with the CA certificates to verify the server with, for a private CA. The system CAs are used otherwise. |
 | `smtp_tls_verify` | `off` skips the certificate check. Only accepted when `smtp_host` is `localhost`, in 127.0.0.0/8 or `::1`. Default `on`. |
 
-A mail that could not be sent counts against none of the rate limits.
+A mail that could not be sent does not count against `sender_limit`,
+`recipient_limit` or `recipient_delay`. It still counts against
+`ip_limit`, which keeps bounding the requests whose mails fail.
 
 Put `smtp_user` and `smtp_password` between single quotes. Inside double
 quotes, `${...}` is expanded, and unquoted values such as `yes`, `none`

@@ -748,9 +748,9 @@ done
     fail "sender link kept after a failed mail"
 [ "$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'from:quinn@allard.it'")" = 0 ] ||
     fail "failed sender mail counted"
-[ "$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'ip:127.0.0.1'")" = "$IPN" ] ||
-    fail "failed sender mail counted for the client"
-ok "failed sender mails leave no link and no count"
+[ "$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'ip:127.0.0.1'")" = $((IPN + 2)) ] ||
+    fail "failed sender mails not counted for the client"
+ok "failed sender mails leave no link and no count for the address"
 grep -v '\] sherpass: ' "$T/php.log" && fail "PHP logged more than the failures"
 : > "$T/php.log"
 
