@@ -10,10 +10,7 @@
 
 declare(strict_types=1);
 
-/*
- * Seconds for the whole dialogue. PHP bounds the connection and each TLS
- * handshake by the same value on its own.
- */
+/* Seconds for everything, from connecting to the end of the dialogue. */
 const SMTP_TIMEOUT = 30;
 const SMTP_CRYPTO = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT |
     STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
@@ -74,21 +71,61 @@ function smtp_send(array $cfg, string $from, string $to, string $msg): void
     if (filter_var($addr, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false) {
         $addr = "[$addr]";
     }
-    $scheme = $cfg['smtp_tls'] === 'tls' ? 'tls' : 'tcp';
 
+    $end = microtime(true) + SMTP_TIMEOUT;
     $errors = [];
     $fp = smtp_warnings($errors, fn() => stream_socket_client(
-        "$scheme://$addr:{$cfg['smtp_port']}", $errno, $errstr,
+        "tcp://$addr:{$cfg['smtp_port']}", $errno, $errstr,
         SMTP_TIMEOUT, STREAM_CLIENT_CONNECT,
         stream_context_create(['ssl' => $ssl])));
     if ($fp === false) {
         throw smtp_error("cannot connect to $host", $errors);
     }
     try {
-        smtp_session(new SmtpConn($fp, microtime(true) + SMTP_TIMEOUT),
-            $cfg, $from, $to, $msg);
+        $c = new SmtpConn($fp, $end);
+        if ($cfg['smtp_tls'] === 'tls') {
+            smtp_tls($c);
+        }
+        smtp_session($c, $cfg, $from, $to, $msg);
     } finally {
         fclose($fp);
+    }
+}
+
+/*
+ * TLS handshake, with the options of the context the stream was made
+ * with. It runs without blocking so that it ends by the deadline too: in
+ * blocking mode PHP would give it a timeout of its own.
+ */
+function smtp_tls(SmtpConn $c): void
+{
+    $errors = [];
+    stream_set_blocking($c->fp, false);
+    try {
+        for (;;) {
+            $done = smtp_warnings($errors, fn() => stream_socket_enable_crypto(
+                $c->fp, true, SMTP_CRYPTO));
+            if ($done === true) {
+                return;
+            }
+            if ($done === false) {
+                throw smtp_error('TLS negotiation failed', $errors);
+            }
+            $left = $c->end - microtime(true);
+            if ($left <= 0) {
+                throw new RuntimeException('smtp: timeout during TLS ' .
+                    'negotiation');
+            }
+            $r = [$c->fp];
+            $w = null;
+            $e = null;
+            if (@stream_select($r, $w, $e, (int)$left,
+                (int)(fmod($left, 1) * 1e6)) === false) {
+                throw new RuntimeException('smtp: TLS negotiation failed');
+            }
+        }
+    } finally {
+        stream_set_blocking($c->fp, true);
     }
 }
 
@@ -118,11 +155,7 @@ function smtp_session(SmtpConn $c, array $cfg, string $from, string $to,
             throw new RuntimeException('smtp: data sent before TLS ' .
                 'negotiation');
         }
-        $errors = [];
-        if (smtp_warnings($errors, fn() => stream_socket_enable_crypto(
-            $c->fp, true, SMTP_CRYPTO)) !== true) {
-            throw smtp_error('TLS negotiation failed', $errors);
-        }
+        smtp_tls($c);
         $ext = smtp_ext(smtp_cmd($c, "EHLO $helo", 'EHLO', [250]));
     }
 

@@ -395,7 +395,8 @@ or numbers are turned into booleans or integers and rejected.
   Certificates are verified against the system CAs or `smtp_cafile`.
   TLS, or only the certificate check, can be turned off for a server on
   the loopback interface, nowhere else. Credentials are never sent
-  without TLS. The whole dialogue must end within 30 seconds, however
+  without TLS. Everything, from the connection and the TLS handshake to
+  the end of the dialogue, must be over within 30 seconds, however
   slowly the server answers
 - **Rate limits** - see `ip_limit`, `sender_limit`, `recipient_limit`
   and `recipient_delay` under [Configuration](#configuration)
