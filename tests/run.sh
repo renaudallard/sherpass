@@ -453,11 +453,17 @@ get "$BASE/?s=$(rnd)"
 expect 404 "unknown share key rejected"
 
 N=$(nmail)
+EXP=$(sql 'SELECT expires FROM secret')
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "email=eve@example.org"
 expect 200 "wrong recipient answered"
 cp "$BODY" "$T/wrong"
 [ "$(nmail)" = "$N" ] || fail "mail sent to wrong recipient"
 ok "no mail to wrong recipient"
+[ "$(sql 'SELECT expires FROM secret')" = "$EXP" ] ||
+    fail "wrong recipient changed the secret"
+[ "$(sql "SELECT COUNT(*) FROM throttle WHERE name = 'pad'")" = 0 ] ||
+    fail "padding left a row"
+ok "wrong recipient leaves the secret and the counts as they were"
 
 claim "$S" "BOB@example.org"
 cmp -s "$BODY" "$T/wrong" || fail "answer differs for the right recipient"

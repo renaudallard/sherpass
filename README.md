@@ -377,7 +377,9 @@ or numbers are turned into booleans or integers and rejected.
 - **Recipient privacy** - the claim page says the same thing whether the
   address matched or not, and nothing that depends on the address is
   done before it has been sent, so neither its text nor its response
-  time tells whether the address matched
+  time tells whether the address matched. After it, a claim writes to
+  the database whether a code is sent or not, so the time other
+  requests wait for that write does not tell either
 - **Links** - built from `base_url`, never from the request `Host` header
 - **Addresses** - only plain addresses are accepted, with no quoted
   local part and no % or ! routing operator, which some relays follow

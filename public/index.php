@@ -312,6 +312,7 @@ function do_claim(array $cfg, PDO $db, int $now): void
             !throttle_ok($db, $name, 1, $cfg['recipient_delay'], $now) ||
             !throttle_ok($db, $name, $cfg['recipient_limit'],
             THROTTLE_WINDOW, $now)) {
+            claim_pad($db, $id, $now);
             return null;
         }
         db_query($db, 'UPDATE secret SET reveal = ?, reveal_expires = ? ' .
@@ -337,6 +338,24 @@ function do_claim(array $cfg, PDO $db, int $now): void
             throttle_undo($db, [$hit]);
         });
     }
+}
+
+/*
+ * Write what preparing a code writes, and undo it, so that a claim keeps
+ * the database for the same time whether a code is sent or not: every
+ * request waits for that write, so its length would show from another
+ * request.
+ */
+function claim_pad(PDO $db, string $id, int $now): void
+{
+    $claimable = 'WHERE id = ? AND claimed IS NULL AND expires > ?';
+    db_query($db, "UPDATE secret SET expires = expires + 1 $claimable",
+        [$id, $now]);
+    db_query($db, "UPDATE secret SET expires = expires - 1 $claimable",
+        [$id, $now]);
+    db_query($db, "INSERT INTO throttle (name, ts) VALUES ('pad', ?)",
+        [$now]);
+    db_query($db, 'DELETE FROM throttle WHERE rowid = last_insert_rowid()');
 }
 
 /*
