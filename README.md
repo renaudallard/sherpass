@@ -91,14 +91,21 @@ earlier.
 ### OpenBSD
 
 nginx and php-fpm both run in a chroot in `/var/www`, and sherpass lives
-inside it. Install the packages:
+inside it. Install the packages and fetch the repository into
+`/var/www/sherpass`:
 
 ```sh
 pkg_add php-pdo_sqlite%8.4 nginx
 ln -sf ../php-8.4.sample/pdo_sqlite.ini /etc/php-8.4/
+ftp -o - https://github.com/renaudallard/sherpass/archive/refs/heads/main.tar.gz |
+    tar xzf - -C /var/www
+mv /var/www/sherpass-main /var/www/sherpass
 ```
 
-Copy the source tree to `/var/www/sherpass`, then:
+With the git package, `git clone https://github.com/renaudallard/sherpass.git
+/var/www/sherpass` does the same. Only `public/` and `src/` run, and they
+must stay side by side; the rest holds the examples used below and the
+tests. Then:
 
 ```sh
 install -d -o www -g www -m 0700 /var/www/sherpass/db
