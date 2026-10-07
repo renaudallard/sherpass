@@ -203,6 +203,38 @@ sherpass reads `sherpass.ini` from its top directory, next to `public/`
 and `src/`, unless the `SHERPASS_CONFIG` FastCGI parameter names another
 file, as in the Debian setup above.
 
+## Upgrade
+
+Only the code is replaced: `sherpass.ini` and the database stay where
+they are. With a clone, as in the Debian setup:
+
+```sh
+git -C /var/www/sherpass pull
+```
+
+With the archive, as in the OpenBSD setup:
+
+```sh
+d=$(mktemp -d)
+ftp -o - https://github.com/renaudallard/sherpass/archive/refs/heads/main.tar.gz |
+    tar xzf - -C "$d"
+rm -rf /var/www/sherpass/public /var/www/sherpass/src
+cp -R "$d"/sherpass-main/* /var/www/sherpass/
+rm -rf "$d"
+```
+
+The archive holds neither `sherpass.ini` nor `db/`, so they are kept,
+and removing `public/` and `src/` first drops files a version no longer
+has. PHP picks the new files up within seconds: opcache checks their
+dates by default. With `opcache.validate_timestamps = 0`, restart php-fpm
+(`rcctl restart php84_fpm`, `systemctl restart php8.4-fpm`).
+
+New settings come with defaults, so `sherpass.ini` only needs a change if
+the new version refuses something it holds. Every page then answers with
+an error, and the log says which setting and why. The
+[commits](https://github.com/renaudallard/sherpass/commits/main) list
+what changed.
+
 ## Serving under a path
 
 To serve sherpass under a path of an existing site, say
