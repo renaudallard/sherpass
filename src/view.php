@@ -162,6 +162,8 @@ function view_compose(string $v, string $sender, int $max_ttl, int $ttl,
         <textarea id="secret" name="secret" maxlength="$max" required
          autocomplete="off" autocapitalize="off" spellcheck="false">
         $secret</textarea>
+        <p class="muted">Up to $max characters, enough for a PEM
+        certificate with its key and passphrase.</p>
         <label for="rcpt">Recipient email address</label>
         <input type="email" id="rcpt" name="rcpt" value="$rcpt"
          maxlength="$emax" autocomplete="off" required>

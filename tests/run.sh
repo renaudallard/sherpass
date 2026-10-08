@@ -419,9 +419,9 @@ ok "notification offered, not asked by default"
 
 printf '\n  p<b>a&s"s'"'"'\n\tw\303\251rd \342\202\254 ' > "$T/secret"
 : > "$T/empty"
-repeat x 4097 > "$T/big"
-php -r 'echo str_repeat("\u{e9}", 4097);' > "$T/bigutf8"
-php -r 'echo str_repeat("\u{e9}", 2000), "\r\n", str_repeat("x", 2095);' \
+repeat x 16385 > "$T/big"
+php -r 'echo str_repeat("\u{e9}", 16385);' > "$T/bigutf8"
+php -r 'echo str_repeat("\u{e9}", 2000), "\r\n", str_repeat("x", 14383);' \
     > "$T/fullutf8"
 
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/empty" \
@@ -432,8 +432,8 @@ post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/big" \
 expect 400 "oversized password rejected"
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/bigutf8" \
     --data-urlencode "rcpt=bob@example.org"
-expect 400 "password over 4096 characters rejected"
-has '1 to 4096 characters'
+expect 400 "password over 16384 characters rejected"
+has '1 to 16384 characters'
 printf 'ab\377cd' > "$T/binary"
 post "$BASE/" --data-urlencode "v=$V" --data-urlencode "secret@$T/binary" \
     --data-urlencode "rcpt=bob@example.org"
@@ -718,13 +718,13 @@ ok "old database migrated with its rows"
 
 # Concurrent reveals: exactly one may succeed.
 
-# 4096 characters, a line break counting as one, are accepted.
+# 16384 characters, a line break counting as one, are accepted.
 
 sender ursula@allard.it
 share "$V" "$T/fullutf8" vera@example.org
 claim "$S" vera@example.org
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
-expect 200 "password of 4096 characters with a line break revealed"
+expect 200 "password of 16384 characters with a line break revealed"
 shown "$T/fullutf8" || fail "long password not displayed intact"
 ok "long password displayed intact"
 
@@ -741,6 +741,16 @@ post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 200 "password composed as multipart revealed"
 shown "$T/fullutf8" || fail "multipart password not displayed intact"
 ok "multipart password displayed intact"
+
+# A PEM certificate with its key fits.
+sender ursula@allard.it
+cat "$T/smtp.crt" "$T/smtp.key" > "$T/pem"
+share "$V" "$T/pem" vera@example.org
+claim "$S" vera@example.org
+post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
+expect 200 "certificate and key revealed"
+shown "$T/pem" || fail "certificate and key not displayed intact"
+ok "certificate and key displayed intact"
 
 sender carol@allard.it
 share "$V" "$T/secret" dan@example.org

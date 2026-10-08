@@ -15,7 +15,7 @@ declare(strict_types=1);
 const TOKEN_BYTES = 32;
 const TOKEN_CHARS = 43;
 const KDF_CONTEXT = 'sherpass';
-const SECRET_MAX = 4096;    /* characters */
+const SECRET_MAX = 16384;   /* characters */
 
 function token_new(): string
 {

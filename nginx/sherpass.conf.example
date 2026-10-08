@@ -32,8 +32,8 @@ server {
     root /var/www/sherpass/public;
     # The compose form carries the password in clear: keep the whole body
     # in memory, never in a temporary file.
-    client_max_body_size 64k;
-    client_body_buffer_size 64k;
+    client_max_body_size 128k;
+    client_body_buffer_size 128k;
 
     add_header Strict-Transport-Security "max-age=31536000" always;
 

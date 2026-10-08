@@ -71,7 +71,9 @@ gives nginx and php-fpm.
 1. The sender enters their email address on the site. If its domain is
    in `allowed_domains`, a link is mailed to it.
 2. The link leads to a form where the sender enters the password, the
-   recipient's email address and how long the password may wait.
+   recipient's email address and how long the password may wait. The
+   password can be any text of up to 16384 characters, such as a PEM
+   certificate with its key and passphrase.
    Submitting it returns a share link, and mails the sender a link to
    delete the password before it is displayed. A sender link can be used
    for one password only.
@@ -334,8 +336,8 @@ location = /sherpass/ {
     include fastcgi_params;
     fastcgi_param SCRIPT_FILENAME /sherpass/public/index.php;
     fastcgi_pass unix:run/php-fpm.sock;
-    client_max_body_size 64k;
-    client_body_buffer_size 64k;
+    client_max_body_size 128k;
+    client_body_buffer_size 128k;
     access_log /var/www/logs/sherpass.access.log sherpass;
 }
 
@@ -600,7 +602,7 @@ and it shares one text password once, without files, API or CLI.
   only show when no other worker is free
 - Someone with access to the sender mailbox can delete the passwords
   shared from it, until they are displayed
-- Passwords are limited to 4096 characters
+- Passwords are limited to 16384 characters
 - A sender address stays in the database while its sender link is
   valid, and in the rate limit counts for an hour, as do client
   addresses. Their times can link them to the passwords shared or
