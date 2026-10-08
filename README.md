@@ -307,7 +307,9 @@ an error, and the log says which setting and why. The
 what changed.
 
 A version that changes the database upgrades it on the first request,
-keeping its rows.
+keeping its rows. A database made before `auto_vacuum` was enabled is
+rebuilt once with `VACUUM`, in memory, which makes that request slower
+on a large file.
 
 ## Serving under a path
 
@@ -452,8 +454,9 @@ or numbers are turned into booleans or integers and rejected.
   including its deleted pages, thus reveals neither the password nor its
   recipient, and its sender only through the short lived rows listed
   under [Limitations](#limitations). Even with the mails sherpass
-  sends, the password stays out of reach. SQLite `secure_delete` is
-  enabled as well
+  sends, the password stays out of reach. SQLite `secure_delete` and
+  `auto_vacuum` are enabled as well, so deleted rows are overwritten
+  and the file shrinks back once they are gone
 - **Code** - the recipient gets a code rather than a link. It only works
   together with the share key, which the sender hands over by other
   means, so a mailbox alone is not enough to display the password

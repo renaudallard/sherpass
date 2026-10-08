@@ -58,6 +58,16 @@ function db_open(string $path): PDO
         PDO::ATTR_TIMEOUT => 5,
     ]);
     $db->exec('PRAGMA secure_delete = ON');
+    $db->exec('PRAGMA temp_store = MEMORY');
+    /*
+     * Hand the pages freed by db_purge() back to the filesystem, so the
+     * file does not keep the size of its busiest hour. An existing
+     * database only switches through VACUUM, once.
+     */
+    if ((int)$db->query('PRAGMA auto_vacuum')->fetchColumn() === 0) {
+        $db->exec('PRAGMA auto_vacuum = FULL');
+        $db->exec('VACUUM');
+    }
     $db->exec(SCHEMA);
     db_migrate($db);
     return $db;

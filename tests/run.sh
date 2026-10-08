@@ -716,6 +716,32 @@ M=$(php -r 'require $argv[1] . "/src/db.php";
 [ "$M" = vcn1 ] || fail "old database not migrated: $M"
 ok "old database migrated with its rows"
 
+# The file shrinks once its rows are purged, an old one when opened.
+M=$(php -r 'require $argv[1] . "/src/db.php";
+    function add(PDO $db): void {
+        for ($i = 0; $i < 10; $i++) {
+            $db->exec("INSERT INTO secret (id, sender, rcpt, box, " .
+                "expires) VALUES ($i, \"s\", \"r\", zeroblob(20000), 1)");
+        }
+    }
+    $db = new PDO("sqlite:" . $argv[2]);
+    $db->exec(SCHEMA);
+    add($db);
+    $db->exec("DELETE FROM secret");
+    $old = filesize($argv[2]);
+    $db = db_open($argv[2]);
+    clearstatcache();
+    $open = filesize($argv[2]);
+    add($db);
+    db_purge($db, 2);
+    clearstatcache();
+    echo $old > 200000 && $open < 100000 &&
+        filesize($argv[2]) === $open ? "ok" : "$old $open " .
+        filesize($argv[2]);
+    ' "$ROOT" "$T/vacuum.db")
+[ "$M" = ok ] || fail "database file not shrunk: $M"
+ok "database file shrinks after a purge"
+
 # Concurrent reveals: exactly one may succeed.
 
 # 16384 characters, a line break counting as one, are accepted.
