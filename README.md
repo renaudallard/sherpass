@@ -265,6 +265,13 @@ compose form carries the password in clear. PHP does the same with an
 urlencoded body of 16k or more, so the compose form is sent as
 multipart, which PHP reads without a temporary file.
 
+The pages go the same way. The one that displays a password carries it
+in clear, as does the compose form when it comes back with an error, and
+nginx writes what its FastCGI buffers cannot hold of a page to a
+temporary file when the client reads it slowly. The buffers of the
+example hold the largest of these pages, about 100k for a password of
+16384 quotes, and `fastcgi_max_temp_file_size 0` turns such files off.
+
 sherpass reads `sherpass.ini` from its top directory, next to `public/`
 and `src/`, unless the `SHERPASS_CONFIG` FastCGI parameter names another
 file, as in the Debian setup above.
@@ -340,6 +347,8 @@ location = /sherpass/ {
     fastcgi_pass unix:run/php-fpm.sock;
     client_max_body_size 128k;
     client_body_buffer_size 128k;
+    fastcgi_buffers 16 8k;
+    fastcgi_max_temp_file_size 0;
     access_log /var/www/logs/sherpass.access.log sherpass;
 }
 

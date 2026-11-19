@@ -43,6 +43,11 @@ server {
         # On OpenBSD, where php-fpm runs in a chroot in /var/www, the
         # socket is unix:run/php-fpm.sock.
         fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+        # The page that displays a password carries it in clear as well:
+        # buffers for the largest page, and no temporary file for what
+        # they would not hold.
+        fastcgi_buffers 16 8k;
+        fastcgi_max_temp_file_size 0;
     }
 
     location = /style.css {
