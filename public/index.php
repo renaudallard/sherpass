@@ -246,7 +246,8 @@ function do_compose(array $cfg, PDO $db, int $now): void
             '(id, sender, rcpt, box, expires, cancel, notify) ' .
             'VALUES (?, ?, ?, ?, ?, ?, ?)',
             [$id, addr_seal($sender, $id, 'sender', $enc),
-            rcpt_tag($rcpt, $tag), secret_seal($secret, $id, $enc),
+            rcpt_tag($rcpt, $tag),
+            pad_seal($secret, SECRET_BLOCK, $id, $enc),
             $expires, token_hash($cancel),
             $notify ? addr_seal($rcpt, $id, 'notify', $enc) : null]);
         return true;
@@ -510,7 +511,7 @@ function do_reveal(array $cfg, PDO $db, int $now): void
     $rcpt = $notify === null ? '' :
         addr_open($notify, $id, 'notify', $enc);
     $secret = $sender === null || $rcpt === null ? null :
-        secret_open($box, $id, $enc);
+        pad_open($box, $id, $enc);
     if ($secret === null) {
         db_query($db, 'DELETE FROM secret WHERE id = ?', [$id]);
         throw new RuntimeException("cannot decrypt secret $id");

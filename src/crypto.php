@@ -16,6 +16,7 @@ const TOKEN_BYTES = 32;
 const TOKEN_CHARS = 43;
 const KDF_CONTEXT = 'sherpass';
 const SECRET_MAX = 16384;   /* characters */
+const SECRET_BLOCK = 256;   /* bytes */
 
 function token_new(): string
 {
@@ -114,24 +115,39 @@ function secret_open(string $box, string $ad, string $enc): ?string
 }
 
 /*
+ * Passwords and addresses are padded with NUL, which neither ever holds,
+ * to the next multiple of $block bytes before they are encrypted, so that
+ * the ciphertext does not tell their length within a block. Those
+ * encrypted before the padding have none, which changes nothing when
+ * they are opened.
+ */
+function pad_seal(string $plain, int $block, string $ad, string $enc): string
+{
+    $len = intdiv(strlen($plain) + $block - 1, $block) * $block;
+    return secret_seal(str_pad($plain, $len, "\0"), $ad, $enc);
+}
+
+function pad_open(string $box, string $ad, string $enc): ?string
+{
+    $plain = secret_open($box, $ad, $enc);
+    return $plain === null ? null : rtrim($plain, "\0");
+}
+
+/*
  * The addresses of a row are encrypted with the key of the password, each
- * under associated data naming it, so that none can be swapped. They are
- * padded with NUL, which an address never holds, to EMAIL_MAX from
- * mail.php, so that the ciphertext does not tell their length. Those
- * encrypted before the padding have none, which changes nothing here.
+ * under associated data naming it, so that none can be swapped. None is
+ * longer than EMAIL_MAX from mail.php, so they all fill one block of it.
  */
 function addr_seal(string $email, string $id, string $name,
     string $enc): string
 {
-    return secret_seal(str_pad($email, EMAIL_MAX, "\0"), "$id:$name",
-        $enc);
+    return pad_seal($email, EMAIL_MAX, "$id:$name", $enc);
 }
 
 function addr_open(string $box, string $id, string $name,
     string $enc): ?string
 {
-    $email = secret_open($box, "$id:$name", $enc);
-    return $email === null ? null : rtrim($email, "\0");
+    return pad_open($box, "$id:$name", $enc);
 }
 
 /*

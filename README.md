@@ -457,8 +457,10 @@ or numbers are turned into booleans or integers and rejected.
   The database id, the encryption key and the key used to hash the
   recipient address are derived from it. The password, the sender
   address and the recipient address, when the sender asked to be told
-  of the display, are encrypted with XChaCha20-Poly1305, the addresses
-  padded to 254 bytes so that their length does not show. Matching the
+  of the display, are encrypted with XChaCha20-Poly1305. The addresses
+  are padded to 254 bytes and the password to a multiple of 256 bytes
+  first, so that the size of a row only tells the length of a password
+  to within 256 bytes. Matching the
   recipient only uses a keyed BLAKE2b hash. A copy of the database,
   including its deleted pages, thus reveals neither the password nor its
   recipient, and its sender only through the short lived rows listed

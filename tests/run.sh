@@ -486,6 +486,11 @@ ALEN=$((2 * (24 + 254 + 16)))
 [ "$(sql 'SELECT length(sender) FROM secret')" = "$ALEN" ] ||
     fail "sender not padded"
 ok "sender padded before encryption"
+# The same for the password, padded to a multiple of 256 bytes.
+PLEN=$((2 * (24 + 256 + 16)))
+[ "$(sql 'SELECT length(box) FROM secret')" = "$PLEN" ] ||
+    fail "password not padded"
+ok "password padded before encryption"
 
 get "$BASE/?s=$S"
 expect 200 "claim page"
@@ -586,16 +591,20 @@ sender wanda@allard.it
 share "$V" "$T/secret" xavier@example.org
 X=$(php -r 'require $argv[1] . "/src/crypto.php";
     [$id, $enc] = secret_keys(token_decode($argv[2]));
-    echo secret_seal($argv[3], "$id:sender", $enc);' \
-    "$ROOT" "$S" wanda@allard.it)
-sql "UPDATE secret SET sender = '$X'" > /dev/null
+    echo secret_seal($argv[3], "$id:sender", $enc), "|",
+        secret_seal(file_get_contents($argv[4]), $id, $enc);' \
+    "$ROOT" "$S" wanda@allard.it "$T/secret")
+sql "UPDATE secret SET sender = '${X%|*}', box = '${X#*|}'" > /dev/null
+[ "$(sql 'SELECT length(box) FROM secret')" -lt "$PLEN" ] ||
+    fail "password of the old row is padded"
 claim "$S" xavier@example.org
 grep -q '^wanda@allard.it has shared a password' "$(lastmail)" ||
     fail "code mail lacks a sender encrypted without padding"
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
-expect 200 "password with a sender encrypted without padding revealed"
+expect 200 "password and sender encrypted without padding revealed"
 has '<strong>wanda@allard.it</strong>'
-ok "sender encrypted without padding still shown"
+shown "$T/secret" || fail "password encrypted without padding altered"
+ok "password and sender encrypted without padding still shown"
 
 # A sender that does not decrypt mails no code and displays nothing.
 noerrors "before damaged senders"
@@ -748,6 +757,10 @@ ok "database file shrinks after a purge"
 
 sender ursula@allard.it
 share "$V" "$T/fullutf8" vera@example.org
+# Its 18385 bytes fill 72 blocks of 256.
+[ "$(sql 'SELECT length(box) FROM secret')" = $((2 * (24 + 18432 + 16))) ] ||
+    fail "long password not padded to the next multiple"
+ok "long password padded to the next multiple"
 claim "$S" vera@example.org
 post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 200 "password of 16384 characters with a line break revealed"
