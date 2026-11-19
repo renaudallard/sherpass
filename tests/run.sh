@@ -339,6 +339,8 @@ iptest ::ffff:192.0.2.7 ip:192.0.2.7
 
 webconfig "ip_limit = 1000"
 
+# The log must be there for the first look at it below.
+: > "$T/server.log"
 SHERPASS_CONFIG=$T/sherpass.ini PHP_CLI_SERVER_WORKERS=4 \
     php -d sendmail_path="$ROOT/tests/sendmail.sh $MAILDIR" \
     -d log_errors=1 -d error_log="$T/php.log" \
@@ -742,8 +744,6 @@ M=$(php -r 'require $argv[1] . "/src/db.php";
 [ "$M" = ok ] || fail "database file not shrunk: $M"
 ok "database file shrinks after a purge"
 
-# Concurrent reveals: exactly one may succeed.
-
 # 16384 characters, a line break counting as one, are accepted.
 
 sender ursula@allard.it
@@ -777,6 +777,8 @@ post "$BASE/" --data-urlencode "s=$S" --data-urlencode "r=$R"
 expect 200 "certificate and key revealed"
 shown "$T/pem" || fail "certificate and key not displayed intact"
 ok "certificate and key displayed intact"
+
+# Concurrent reveals: exactly one may succeed.
 
 sender carol@allard.it
 share "$V" "$T/secret" dan@example.org
