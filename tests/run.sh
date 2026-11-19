@@ -591,10 +591,11 @@ sender wanda@allard.it
 share "$V" "$T/secret" xavier@example.org
 X=$(php -r 'require $argv[1] . "/src/crypto.php";
     [$id, $enc] = secret_keys(token_decode($argv[2]));
-    echo secret_seal($argv[3], "$id:sender", $enc), "|",
+    echo secret_seal($argv[3], "$id:sender", $enc), " ",
         secret_seal(file_get_contents($argv[4]), $id, $enc);' \
     "$ROOT" "$S" wanda@allard.it "$T/secret")
-sql "UPDATE secret SET sender = '${X%|*}', box = '${X#*|}'" > /dev/null
+# A space, which hex never holds: OpenBSD sh does not strip at a bare |.
+sql "UPDATE secret SET sender = '${X% *}', box = '${X#* }'" > /dev/null
 [ "$(sql 'SELECT length(box) FROM secret')" -lt "$PLEN" ] ||
     fail "password of the old row is padded"
 claim "$S" xavier@example.org
